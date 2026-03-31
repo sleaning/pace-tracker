@@ -3,6 +3,9 @@ package com.pacetrack.di
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.pacetrack.data.model.remote.FirestoreService
+import com.pacetrack.data.model.repository.RunRepository
+import com.pacetrack.data.model.repository.UserRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,4 +27,16 @@ object AppModule {
     @Provides
     @Singleton
     fun provideFirebaseStorage(): FirebaseStorage = FirebaseStorage.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideFirestoreService(firestore: FirebaseFirestore) = FirestoreService(firestore)
+
+    @Provides
+    @Singleton
+    fun provideRunRepository(service: FirestoreService) = RunRepository(service)
+
+    @Provides
+    @Singleton
+    fun provideUserRepository(firestore: FirebaseFirestore) = UserRepository(firestore)
 }

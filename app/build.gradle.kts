@@ -95,6 +95,14 @@ dependencies {
 
     // Coil (image loading)
     implementation(libs.coil.compose)
+
+    // Permissions
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    // Maps
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
 
 kapt {

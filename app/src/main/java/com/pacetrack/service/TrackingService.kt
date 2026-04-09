@@ -6,6 +6,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.hardware.SensorManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
 import android.location.Location
 import android.os.Handler
 import android.os.IBinder
@@ -20,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+
 /**
  * TrackingService
  *
@@ -33,7 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Phase 4 will add SensorManager step counting inside this same service.
  * The stepCount and cadence StateFlows are already wired and ready.
  */
-class TrackingService : Service() {
+class TrackingService : Service(), SensorEventListener {
 
     companion object {
         private const val CHANNEL_ID      = "pacetrack_tracking_channel"
@@ -100,6 +105,12 @@ class TrackingService : Service() {
     // Rolling buffer of recent Location objects used to smooth pace
     private val recentLocations = ArrayDeque<Location>(PACE_SMOOTH_WINDOW + 1)
 
+    // Phase 4 — Step counter fields
+    private lateinit var sensorManager: SensorManager
+    private var stepSensor: Sensor? = null
+    private var stepBaseline: Int = -1
+    private var runStartTimeMs: Long = 0L
+
     private val handler = Handler(Looper.getMainLooper())
 
     // Updates elapsed time and refreshes the notification every second
@@ -121,6 +132,8 @@ class TrackingService : Service() {
         createNotificationChannel()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         setupLocationCallback()
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -137,6 +150,7 @@ class TrackingService : Service() {
         super.onDestroy()
         handler.removeCallbacks(tickRunnable)
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        sensorManager.unregisterListener(this)
     }
 
     // ── Start / stop ──────────────────────────────────────────────────────────
@@ -151,16 +165,46 @@ class TrackingService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         requestLocationUpdates()
         handler.post(tickRunnable)
+
+        // register step counter
+        stepBaseline = -1
+        runStartTimeMs = sessionStartMs
+        stepSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
     }
 
     private fun stopTracking() {
         _isTracking.value = false
         handler.removeCallbacks(tickRunnable)
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        sensorManager.unregisterListener(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         // State is NOT reset here — TrackingViewModel reads final values first
     }
+
+    // ── Step Counter ──────────────────────────────────────────────────────────
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
+
+        val totalSteps = event.values[0].toInt()
+
+        // Handle phone reboot mid-run — sensor resets to a small number
+        if (stepBaseline == -1 || totalSteps < stepBaseline) {
+            stepBaseline = totalSteps
+        }
+
+        val sessionSteps = totalSteps - stepBaseline
+        val elapsedMinutes = (System.currentTimeMillis() - runStartTimeMs) / 60_000f
+        val cadence = if (elapsedMinutes > 0) sessionSteps / elapsedMinutes else 0f
+
+        _stepCount.value = sessionSteps
+        _cadence.value = cadence
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) { /* no-op */ }
 
     // ── Location ──────────────────────────────────────────────────────────────
 

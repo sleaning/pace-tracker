@@ -9,20 +9,53 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/**
+ * Representing the different states of the History screen.
+ * This ensures the UI can easily react to loading or error scenarios.
+ */
+sealed class HistoryUiState {
+    object Loading : HistoryUiState()
+    data class Success(val runs: List<Run>) : HistoryUiState()
+    data class Error(val message: String) : HistoryUiState()
+}
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val runRepository: RunRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
-    private val _runs = MutableStateFlow<List<Run>>(emptyList())
-    val runs: StateFlow<List<Run>> = _runs
 
+    private val _uiState = MutableStateFlow<HistoryUiState>(HistoryUiState.Loading)
+    val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
+
+    init {
+        loadRuns()
+    }
+
+    /**
+     * Fetches the user's runs and updates the UI state.
+     * * By using StateFlow within the ViewModel, the data survives configuration changes
+     * (like screen rotations), preventing unnecessary network calls to Firebase.
+     */
     fun loadRuns() {
         viewModelScope.launch {
-            val userId = auth.currentUser?.uid ?: return@launch
-            _runs.value = runRepository.getRuns(userId)
+            _uiState.value = HistoryUiState.Loading
+
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                _uiState.value = HistoryUiState.Error("User not authenticated")
+                return@launch
+            }
+
+            try {
+                val runs = runRepository.getRuns(userId)
+                _uiState.value = HistoryUiState.Success(runs)
+            } catch (e: Exception) {
+                _uiState.value = HistoryUiState.Error(e.message ?: "An unexpected error occurred")
+            }
         }
     }
 }

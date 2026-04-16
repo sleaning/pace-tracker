@@ -17,6 +17,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import com.pacetrack.data.model.ActivityType
 import com.pacetrack.ui.tracking.components.LiveStatsBar
 
 /**
@@ -33,7 +34,7 @@ import com.pacetrack.ui.tracking.components.LiveStatsBar
  */
 @Composable
 fun ActiveTrackingScreen(
-    onRunFinished: () -> Unit,
+    onRunFinished: (ActivityType) -> Unit,
     viewModel: TrackingViewModel = hiltViewModel()
 ) {
     val routePoints by viewModel.routePoints.collectAsState()
@@ -147,7 +148,7 @@ fun ActiveTrackingScreen(
                     onClick = {
                         showStopDialog = false
                         viewModel.stopRun()
-                        onRunFinished()
+                        onRunFinished(viewModel.activityType)
                     }
                 ) {
                     Text("Stop & Save")

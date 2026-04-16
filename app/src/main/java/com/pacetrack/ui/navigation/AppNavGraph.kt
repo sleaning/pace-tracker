@@ -6,6 +6,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.pacetrack.data.model.ActivityType
 import com.pacetrack.ui.auth.SignInScreen
 import com.pacetrack.ui.auth.SignUpScreen
 import com.pacetrack.ui.auth.SplashScreen
@@ -90,16 +91,27 @@ fun AppNavGraph(navController: NavHostController) {
 
         composable(Screen.ActiveTracking.route) {
             ActiveTrackingScreen(
-                onRunFinished = {
-                    navController.navigate(Screen.PostRunSummary.route) {
+                onRunFinished = { type ->
+                    navController.navigate(Screen.PostRunSummary.buildRoute(type.name)) {
                         popUpTo(Screen.PreRun.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(Screen.PostRunSummary.route) {
+        composable(
+            route = Screen.PostRunSummary.route,
+            arguments = listOf(navArgument(Screen.PostRunSummary.ARG) { type = NavType.StringType })
+        ) { backStackEntry ->
+            val typeStr = backStackEntry.arguments?.getString(Screen.PostRunSummary.ARG)
+            val activityType = try {
+                ActivityType.valueOf(typeStr ?: "RUN")
+            } catch (e: Exception) {
+                ActivityType.RUN
+            }
+
             PostRunSummaryScreen(
+                activityType = activityType,
                 onSaved = {
                     navController.navigate(Screen.History.route) {
                         popUpTo(Screen.Home.route) { inclusive = false }
@@ -107,7 +119,7 @@ fun AppNavGraph(navController: NavHostController) {
                 },
                 onDiscarded = {
                     navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = false }
+                        popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 }
             )

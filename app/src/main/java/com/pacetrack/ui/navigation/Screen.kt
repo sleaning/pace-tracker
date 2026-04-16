@@ -22,7 +22,12 @@ sealed class Screen(val route: String) {
 
     // Detail screens
     object ActiveTracking : Screen("active_tracking")
-    object PostRunSummary : Screen("post_run_summary")
+    
+    object PostRunSummary : Screen("post_run_summary/{activityType}") {
+        const val ARG = "activityType"
+        fun buildRoute(type: String) = "post_run_summary/$type"
+    }
+
     object RouteDetail : Screen("route_detail/{runId}") {
         const val ARG = "runId"
         fun buildRoute(runId: String) = "route_detail/$runId"

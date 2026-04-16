@@ -16,6 +16,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+data class SessionSnapshot(
+    val startTime: com.google.firebase.Timestamp,
+    val endTime: com.google.firebase.Timestamp,
+    val durationMs: Long,
+    val distanceMetres: Float,
+    val avgPaceSecPerKm: Float,
+    val bestPaceSecPerKm: Float,
+    val stepCount: Int,
+    val avgCadence: Float,
+    val elevationGain: Float,
+    val encodedPolyline: String,
+    val routePoints: List<com.pacetrack.data.model.RoutePoint>
+)
+
 /**
  * TrackingViewModel
  *
@@ -103,6 +117,28 @@ class TrackingViewModel @Inject constructor(
         if (distKm <= 0f) return 0f
         val totalSeconds = elapsedMs.value / 1000f
         return totalSeconds / distKm
+    }
+
+    /**
+     * Captures the current session state as an immutable snapshot.
+     * Called by PostRunSummaryViewModel to build the Run object for Firestore.
+     */
+    fun sessionSnapshot(): SessionSnapshot {
+        return SessionSnapshot(
+            startTime = com.google.firebase.Timestamp(TrackingService.elapsedMs.value.let {
+                (System.currentTimeMillis() - it) / 1000
+            }, 0),
+            endTime = com.google.firebase.Timestamp(System.currentTimeMillis() / 1000, 0),
+            durationMs = elapsedMs.value,
+            distanceMetres = distanceMetres.value,
+            avgPaceSecPerKm = getAveragePaceSec(),
+            bestPaceSecPerKm = getAveragePaceSec(),
+            stepCount = stepCount.value,
+            avgCadence = cadence.value,
+            elevationGain = 0f,
+            encodedPolyline = getEncodedPolyline(),
+            routePoints = routePoints.value
+        )
     }
 
     /**

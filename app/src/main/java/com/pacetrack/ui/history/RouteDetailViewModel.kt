@@ -7,6 +7,7 @@ import com.pacetrack.data.model.Photo
 import com.pacetrack.data.model.RoutePoint
 import com.pacetrack.data.model.Run
 import com.pacetrack.data.model.repository.RunRepository
+import com.pacetrack.util.PolylineEncoder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,11 +31,9 @@ sealed class RouteDetailUiState {
 @HiltViewModel
 class RouteDetailViewModel @Inject constructor(
     private val runRepository: RunRepository,
-    savedStateHandle: SavedStateHandle          // Hilt injects nav args here
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    // The runId nav argument must be registered as a named argument in AppNavGraph:
-    // composable("route_detail/{runId}") { ... }
     private val runId: String = checkNotNull(savedStateHandle["runId"])
 
     private val _uiState = MutableStateFlow<RouteDetailUiState>(RouteDetailUiState.Loading)
@@ -45,26 +44,33 @@ class RouteDetailViewModel @Inject constructor(
     }
 
     /**
-     * Loads the run, its GPS route points, and its photos in parallel using
-     * coroutine async/await — three Firestore reads at once instead of three
-     * sequential awaits. Exposes as a single RouteDetail object in StateFlow.
-     *
-     * StateFlow survives screen rotation: the data is fetched once when
-     * the ViewModel is first created, then reused on every recomposition.
+     * Loads the run and its photos in parallel. The route points are decoded
+     * from the polyline string already stored on the Run document — no separate
+     * Firestore read needed, which is faster AND avoids the empty-subcollection
+     * problem (we never wrote to runs/{id}/points in the first place).
      */
     private fun loadDetail() {
         viewModelScope.launch {
             _uiState.value = RouteDetailUiState.Loading
             try {
-                // Parallel reads — all three fire at the same time
                 val runDeferred = async { runRepository.getRunById(runId) }
-                val pointsDeferred = async { runRepository.getRoutePoints(runId) }
                 val photosDeferred = async { runRepository.getPhotosForRun(runId) }
 
                 val run = runDeferred.await()
                     ?: throw IllegalStateException("Run not found")
-                val points = pointsDeferred.await()
                 val photos = photosDeferred.await()
+
+                // Decode the polyline into RoutePoints for the map.
+                val points = if (run.encodedPolyline.isNotBlank()) {
+                    PolylineEncoder.decode(run.encodedPolyline).map { latLng ->
+                        RoutePoint(
+                            latitude = latLng.latitude,
+                            longitude = latLng.longitude
+                        )
+                    }
+                } else {
+                    emptyList()
+                }
 
                 _uiState.value = RouteDetailUiState.Success(
                     RouteDetail(run, points, photos)

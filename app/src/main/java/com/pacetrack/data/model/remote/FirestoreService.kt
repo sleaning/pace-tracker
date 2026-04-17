@@ -12,9 +12,16 @@ class FirestoreService @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
     suspend fun saveRun(run: Run): String {
-        val doc = firestore.collection("runs").document()
-        doc.set(run.copy(id = doc.id)).await()
-        return doc.id
+        // If the caller already set an id (e.g. because photos need to reference
+        // the runId before the run is saved), use it. Otherwise generate one.
+        val docId = run.id.ifBlank {
+            firestore.collection("runs").document().id
+        }
+        firestore.collection("runs")
+            .document(docId)
+            .set(run.copy(id = docId))
+            .await()
+        return docId
     }
 
     suspend fun getRuns(userId: String): List<Run> {

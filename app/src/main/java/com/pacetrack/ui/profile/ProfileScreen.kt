@@ -18,10 +18,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.pacetrack.ui.auth.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onSignOut: () -> Unit) {
+fun ProfileScreen(
+    onSignOut: () -> Unit,
+    authViewModel: AuthViewModel = hiltViewModel()
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("Profile") }) }
     ) { padding ->
@@ -37,7 +42,10 @@ fun ProfileScreen(onSignOut: () -> Unit) {
             )
             Spacer(Modifier.height(40.dp))
             Button(
-                onClick = onSignOut,
+                onClick = {
+                    authViewModel.signOut()
+                    onSignOut()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
                 ),

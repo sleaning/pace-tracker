@@ -56,6 +56,7 @@ fun PostRunSummaryScreen(
     val saveState by viewModel.saveState.collectAsState()
     val pendingPhotos by viewModel.pendingPhotos.collectAsState()
     val snapshot = remember { trackingViewModel.sessionSnapshot() }
+    var photoPickerError by remember { mutableStateOf<String?>(null) }
 
     // Navigation after save
     LaunchedEffect(saveState) {
@@ -222,6 +223,15 @@ fun PostRunSummaryScreen(
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }
+
+            photoPickerError?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
         }
     }
 
@@ -248,11 +258,19 @@ fun PostRunSummaryScreen(
                     icon = Icons.Default.PhotoCamera,
                     label = "Take photo",
                     onClick = {
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        scope.launch {
+                            sheetState.hide()
                             showPhotoSheet = false
-                            val uri = createTempImageUri(context)
-                            pendingCameraUri = uri
-                            cameraLauncher.launch(uri)
+                            runCatching { createTempImageUri(context) }
+                                .onSuccess { uri ->
+                                    photoPickerError = null
+                                    pendingCameraUri = uri
+                                    cameraLauncher.launch(uri)
+                                }
+                                .onFailure {
+                                    pendingCameraUri = null
+                                    photoPickerError = "Unable to open the camera right now."
+                                }
                         }
                     }
                 )
@@ -261,8 +279,10 @@ fun PostRunSummaryScreen(
                     icon = Icons.Default.PhotoLibrary,
                     label = "Choose from gallery",
                     onClick = {
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        scope.launch {
+                            sheetState.hide()
                             showPhotoSheet = false
+                            photoPickerError = null
                             galleryLauncher.launch("image/*")
                         }
                     }
@@ -404,7 +424,7 @@ private fun createTempImageUri(context: Context): Uri {
     )
     return FileProvider.getUriForFile(
         context,
-        "${context.packageName}.fileprovider",
+        "${context.packageName}.FileProvider",
         imageFile
     )
 }

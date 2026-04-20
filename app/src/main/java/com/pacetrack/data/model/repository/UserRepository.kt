@@ -1,30 +1,47 @@
 package com.pacetrack.data.model.repository
 
-import com.google.firebase.firestore.FieldValue
+import com.google.firebase.auth.FirebaseAuth
 import com.pacetrack.data.model.User
-import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+import com.pacetrack.data.model.remote.FirestoreService
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class UserRepository @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val firestoreService: FirestoreService,
+    private val auth: FirebaseAuth
 ) {
+    private val currentUserId get() = auth.currentUser?.uid ?: ""
+    
     suspend fun createUser(user: User) {
-        firestore.collection("users").document(user.id).set(user).await()
+        firestoreService.saveUser(user)
     }
 
-    suspend fun getUser(userId: String): User? {
-        return firestore.collection("users").document(userId)
-            .get().await().toObject(User::class.java)
+    suspend fun getUser(userId: String): User? = firestoreService.getUser(userId)
+    
+    suspend fun getCurrentUser(): User? = if (currentUserId.isNotEmpty()) {
+        firestoreService.getUser(currentUserId)
+    } else {
+        null
     }
 
-    suspend fun followUser(currentUserId: String, targetUserId: String) {
-        firestore.collection("users").document(currentUserId)
-            .update("following", FieldValue.arrayUnion(targetUserId)).await()
+    suspend fun searchUsers(query: String): List<User> =
+        firestoreService.searchUsers(query).filter { it.id != currentUserId }
+
+    suspend fun followUser(targetUserId: String) {
+        if (currentUserId.isNotEmpty()) {
+            firestoreService.followUser(currentUserId, targetUserId)
+        }
     }
 
-    suspend fun unfollowUser(currentUserId: String, targetUserId: String) {
-        firestore.collection("users").document(currentUserId)
-            .update("following", FieldValue.arrayRemove(targetUserId)).await()
+    suspend fun unfollowUser(targetUserId: String) {
+        if (currentUserId.isNotEmpty()) {
+            firestoreService.unfollowUser(currentUserId, targetUserId)
+        }
+    }
+
+    suspend fun isFollowing(targetUserId: String): Boolean {
+        val user = getCurrentUser() ?: return false
+        return targetUserId in user.following
     }
 }

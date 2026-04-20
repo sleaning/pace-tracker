@@ -5,9 +5,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.pacetrack.data.model.remote.FirestoreService
 import com.pacetrack.data.model.repository.AuthRepository
-import com.pacetrack.data.model.repository.PhotoRepository
-import com.pacetrack.data.model.repository.RunRepository
-import com.pacetrack.data.model.repository.UserRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,27 +29,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFirestoreService(firestore: FirebaseFirestore) = FirestoreService(firestore)
-
-    @Provides
-    @Singleton
-    fun provideRunRepository(service: FirestoreService) = RunRepository(service)
-
-    @Provides
-    @Singleton
-    fun provideUserRepository(firestore: FirebaseFirestore) = UserRepository(firestore)
+    fun provideFirestoreService(firestore: FirebaseFirestore): FirestoreService = 
+        FirestoreService(firestore)
 
     @Provides
     @Singleton
     fun provideAuthRepository(
         auth: FirebaseAuth,
         firestore: FirebaseFirestore
-    ) = AuthRepository(auth, firestore)
-
-    @Provides
-    @Singleton
-    fun providePhotoRepository(
-        firestore: FirebaseFirestore,
-        storage: FirebaseStorage
-    ) = PhotoRepository(firestore, storage)
+    ): AuthRepository = AuthRepository(auth, firestore)
 }

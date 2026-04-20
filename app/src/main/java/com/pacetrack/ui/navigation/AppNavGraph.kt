@@ -62,7 +62,9 @@ fun AppNavGraph(navController: NavHostController) {
         }
 
         composable(Screen.Home.route) {
-            HomeScreen()
+            HomeScreen(onRunClick = { runId ->
+                navController.navigate(Screen.RouteDetail.buildRoute(runId))
+            })
         }
 
         composable(Screen.History.route) {

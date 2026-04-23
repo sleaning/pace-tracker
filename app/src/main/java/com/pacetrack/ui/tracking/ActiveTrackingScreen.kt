@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -18,6 +19,9 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.pacetrack.data.model.ActivityType
+import com.pacetrack.ui.map.MapFallback
+import com.pacetrack.ui.map.isMapsConfigured
+import com.pacetrack.ui.map.rememberMapFallbackVisible
 import com.pacetrack.ui.tracking.components.LiveStatsBar
 
 /**
@@ -44,6 +48,12 @@ fun ActiveTrackingScreen(
     val stepCount by viewModel.stepCount.collectAsState()
 
     var showStopDialog by remember { mutableStateOf(false) }
+    val mapsConfigured = isMapsConfigured()
+    var mapLoaded by remember { mutableStateOf(false) }
+    val showMapFallback = rememberMapFallbackVisible(
+        mapsConfigured = mapsConfigured,
+        mapLoaded = mapLoaded
+    )
 
     // The service emits app-specific RoutePoint objects, but the map library
     // needs LatLng instances, so the screen converts them on the fly.
@@ -58,8 +68,8 @@ fun ActiveTrackingScreen(
     }
 
     // Keep camera centred on user as they move
-    LaunchedEffect(lastPoint) {
-        if (latLngs.isNotEmpty()) {
+    LaunchedEffect(mapsConfigured, mapLoaded, lastPoint) {
+        if (mapsConfigured && mapLoaded && latLngs.isNotEmpty()) {
             cameraPositionState.animate(
                 CameraUpdateFactory.newLatLngZoom(lastPoint, 16f)
             )
@@ -69,34 +79,51 @@ fun ActiveTrackingScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         // ── Full-screen map ───────────────────────────────────────────────────
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            properties = MapProperties(isMyLocationEnabled = true),
-            uiSettings = MapUiSettings(
-                myLocationButtonEnabled = false,
-                zoomControlsEnabled = false
-            )
-        ) {
-            // Draw the route polyline as the user moves
-            if (latLngs.size >= 2) {
-                Polyline(
-                    points = latLngs,
-                    color = Color(0xFF2D6A4F),   // Trail Green from MVP plan
-                    width = 12f
+        if (mapsConfigured) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                onMapLoaded = { mapLoaded = true },
+                properties = MapProperties(isMyLocationEnabled = true),
+                uiSettings = MapUiSettings(
+                    myLocationButtonEnabled = false,
+                    zoomControlsEnabled = false
                 )
-            }
+            ) {
+                // Draw the route polyline as the user moves
+                if (latLngs.size >= 2) {
+                    Polyline(
+                        points = latLngs,
+                        color = Color(0xFF2D6A4F),   // Trail Green from MVP plan
+                        width = 12f
+                    )
+                }
 
-            // Dot at the starting point
-            if (latLngs.isNotEmpty()) {
-                Circle(
-                    center = latLngs.first(),
-                    radius = 6.0,
-                    fillColor = Color(0xFF2D6A4F),
-                    strokeColor = Color.White,
-                    strokeWidth = 3f
-                )
+                // Dot at the starting point
+                if (latLngs.isNotEmpty()) {
+                    Circle(
+                        center = latLngs.first(),
+                        radius = 6.0,
+                        fillColor = Color(0xFF2D6A4F),
+                        strokeColor = Color.White,
+                        strokeWidth = 3f
+                    )
+                }
             }
+        }
+
+        if (showMapFallback) {
+            MapFallback(
+                points = latLngs,
+                modifier = Modifier.fillMaxSize(),
+                shape = RectangleShape,
+                title = if (mapsConfigured) "Live map unavailable" else "Live map unavailable",
+                message = if (mapsConfigured) {
+                    "Google Maps could not authorize this build, so the live route preview is shown instead of the basemap."
+                } else {
+                    "This build is missing MAPS_API_KEY, so Google Maps cannot render yet. The route preview below still updates as GPS points arrive."
+                }
+            )
         }
 
         // ── Stats bar + Stop button pinned to the bottom ──────────────────────

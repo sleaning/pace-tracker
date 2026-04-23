@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import java.util.Properties
 
 plugins {
@@ -15,6 +16,31 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
+val googleServicesApiKey = run {
+    val googleServicesFile = project.file("google-services.json")
+    if (!googleServicesFile.exists()) {
+        ""
+    } else {
+        runCatching {
+            val parsed = JsonSlurper().parse(googleServicesFile) as Map<*, *>
+            val client = (parsed["client"] as? List<*>)
+                ?.firstOrNull() as? Map<*, *>
+            val apiKey = (client?.get("api_key") as? List<*>)
+                ?.firstOrNull() as? Map<*, *>
+            apiKey?.get("current_key") as? String ?: ""
+        }.getOrDefault("")
+    }
+}
+val mapsApiKey = sequenceOf(
+    localProperties.getProperty("MAPS_API_KEY"),
+    System.getenv("MAPS_API_KEY"),
+    googleServicesApiKey
+)
+    .firstOrNull { !it.isNullOrBlank() }
+    .orEmpty()
+val escapedMapsApiKey = mapsApiKey
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 android {
     namespace = "com.pacetrack"
@@ -27,7 +53,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["MAPS_API_KEY"] = localProperties.getProperty("MAPS_API_KEY", "")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "MAPS_API_KEY", "\"$escapedMapsApiKey\"")
     }
 
     buildTypes {

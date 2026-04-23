@@ -38,10 +38,14 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.pacetrack.data.model.ActivityType
+import com.pacetrack.ui.map.MapFallback
+import com.pacetrack.ui.map.isMapsConfigured
 import com.pacetrack.util.DistanceFormatter
 import com.pacetrack.util.PaceFormatter
 import kotlinx.coroutines.launch
 import java.io.File
+
+private const val RUN_PHOTO_FILE_PROVIDER_SUFFIX = ".FileProvider"
 
 /**
  * Post-run review page shown immediately after tracking stops.
@@ -125,7 +129,17 @@ fun PostRunSummaryScreen(
             )
 
             // ── Map ───────────────────────────────────────────────────────────
-            if (polylinePoints.isNotEmpty()) {
+            if (!isMapsConfigured()) {
+                MapFallback(
+                    points = polylinePoints,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                    title = "Route map unavailable",
+                    message = "This build is missing MAPS_API_KEY, so Google Maps cannot render the saved route on this screen."
+                )
+            } else if (polylinePoints.isNotEmpty()) {
                 GoogleMap(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -152,6 +166,16 @@ fun PostRunSummaryScreen(
                         title = "Finish"
                     )
                 }
+            } else {
+                MapFallback(
+                    points = polylinePoints,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                    title = "No route data recorded",
+                    message = "The run finished before any GPS points were captured, so there is no path to draw on the summary map."
+                )
             }
 
             // ── Stats grid ────────────────────────────────────────────────────
@@ -421,7 +445,7 @@ private fun StatCard(modifier: Modifier = Modifier, label: String, value: String
 }
 
 /**
- * Creates a temp file in the app's external cache and returns a FileProvider
+ * Creates a temp file in the app's external files directory and returns a FileProvider
  * Uri suitable for passing to TakePicture. The camera app writes directly
  * to this Uri.
  */
@@ -434,7 +458,7 @@ private fun createTempImageUri(context: Context): Uri {
     )
     return FileProvider.getUriForFile(
         context,
-        "${context.packageName}.fileprovider",
+        "${context.packageName}$RUN_PHOTO_FILE_PROVIDER_SUFFIX",
         imageFile
     )
 }

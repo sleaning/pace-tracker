@@ -23,6 +23,8 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.pacetrack.data.model.ActivityType
 import com.pacetrack.data.model.Photo
+import com.pacetrack.ui.map.MapFallback
+import com.pacetrack.ui.map.isMapsConfigured
 import com.pacetrack.util.DistanceFormatter
 import com.pacetrack.util.PaceFormatter
 import java.text.SimpleDateFormat
@@ -110,42 +112,55 @@ private fun RouteDetailContent(
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
             item {
-                GoogleMap(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    cameraPositionState = cameraPositionState
-                ) {
-                    if (polylinePoints.isNotEmpty()) {
-                        Polyline(
-                            points = polylinePoints,
-                            color = MaterialTheme.colorScheme.primary,
-                            width = 12f
-                        )
-                        Marker(
-                            state = rememberMarkerState(position = polylinePoints.first()),
-                            title = "Start",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-                        )
-                        Marker(
-                            state = rememberMarkerState(position = polylinePoints.last()),
-                            title = "Finish"
-                        )
-                    }
+                if (isMapsConfigured()) {
+                    GoogleMap(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp)
+                            .padding(horizontal = 16.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        cameraPositionState = cameraPositionState
+                    ) {
+                        if (polylinePoints.isNotEmpty()) {
+                            Polyline(
+                                points = polylinePoints,
+                                color = MaterialTheme.colorScheme.primary,
+                                width = 12f
+                            )
+                            Marker(
+                                state = rememberMarkerState(position = polylinePoints.first()),
+                                title = "Start",
+                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                            )
+                            Marker(
+                                state = rememberMarkerState(position = polylinePoints.last()),
+                                title = "Finish"
+                            )
+                        }
 
-                    detail.photos.forEach { photo ->
-                        Marker(
-                            state = rememberMarkerState(position = LatLng(photo.latitude, photo.longitude)),
-                            title = "Photo",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            onClick = {
-                                selectedPhoto = photo
-                                false
-                            }
-                        )
+                        detail.photos.forEach { photo ->
+                            Marker(
+                                state = rememberMarkerState(position = LatLng(photo.latitude, photo.longitude)),
+                                title = "Photo",
+                                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                                onClick = {
+                                    selectedPhoto = photo
+                                    false
+                                }
+                            )
+                        }
                     }
+                } else {
+                    MapFallback(
+                        points = polylinePoints,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp)
+                            .padding(horizontal = 16.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        title = "Route map unavailable",
+                        message = "This build is missing MAPS_API_KEY, so Google Maps cannot render on the detail screen."
+                    )
                 }
             }
 

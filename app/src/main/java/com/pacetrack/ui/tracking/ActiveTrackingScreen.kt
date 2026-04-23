@@ -46,6 +46,7 @@ fun ActiveTrackingScreen(
     val currentPaceSec by viewModel.currentPaceSec.collectAsState()
     val elapsedMs by viewModel.elapsedMs.collectAsState()
     val stepCount by viewModel.stepCount.collectAsState()
+    val activityType by viewModel.activityType.collectAsState()
 
     var showStopDialog by remember { mutableStateOf(false) }
     val mapsConfigured = isMapsConfigured()
@@ -152,12 +153,12 @@ fun ActiveTrackingScreen(
             ) {
                 Icon(
                     imageVector = Icons.Filled.Stop,
-                    contentDescription = "Stop run",
+                    contentDescription = "Stop session",
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Stop Run",
+                    text = "Stop Session",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -169,16 +170,14 @@ fun ActiveTrackingScreen(
     if (showStopDialog) {
         AlertDialog(
             onDismissRequest = { showStopDialog = false },
-            title = { Text("Stop your run?") },
-            text = { Text("Your run will be saved and you can review your stats.") },
+            title = { Text("Stop your activity?") },
+            text = { Text("Your progress will be saved and you can review your stats.") },
             confirmButton = {
                 Button(
                     onClick = {
                         showStopDialog = false
-                        // Stopping the service freezes the session values so
-                        // the next screen can capture and save a stable snapshot.
                         viewModel.stopRun()
-                        onRunFinished(viewModel.activityType)
+                        onRunFinished(activityType)
                     }
                 ) {
                     Text("Stop & Save")

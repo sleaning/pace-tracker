@@ -3,7 +3,6 @@ package com.pacetrack.ui.tracking
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.pacetrack.data.model.ActivityType
 import com.pacetrack.data.model.RoutePoint
 import com.pacetrack.service.TrackingService
@@ -11,9 +10,7 @@ import com.pacetrack.util.PolylineEncoder
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 data class SessionSnapshot(
@@ -41,8 +38,9 @@ data class SessionSnapshot(
  *  3. Survives screen rotation — the service keeps running regardless.
  *  4. Builds the final run summary values when the user stops a run.
  *
- * No binding to the service is needed because all state is on the
- * companion object and collected here as StateFlows.
+ * We expose the Service flows directly to ensure that when a new ViewModel
+ * instance is created (e.g. on the Summary screen), it immediately sees
+ * the current values instead of starting at zero.
  */
 @HiltViewModel
 class TrackingViewModel @Inject constructor(
@@ -60,26 +58,12 @@ class TrackingViewModel @Inject constructor(
     // ── Live data forwarded from TrackingService ──────────────────────────────
 
     val isTracking: StateFlow<Boolean> = TrackingService.isTracking
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-
     val routePoints: StateFlow<List<RoutePoint>> = TrackingService.routePoints
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     val distanceMetres: StateFlow<Float> = TrackingService.distanceMetres
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
-
     val currentPaceSec: StateFlow<Float> = TrackingService.currentPaceSec
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
-
     val elapsedMs: StateFlow<Long> = TrackingService.elapsedMs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
-
-    // Phase 4 — step counter values already wired
     val stepCount: StateFlow<Int> = TrackingService.stepCount
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-
     val cadence: StateFlow<Float> = TrackingService.cadence
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
@@ -101,7 +85,6 @@ class TrackingViewModel @Inject constructor(
 
     /**
      * Builds the encoded polyline string from the current route points.
-     * Called by PostRunSummaryScreen before saving to Firestore.
      */
     fun getEncodedPolyline(): String {
         val latLngs = routePoints.value.map { LatLng(it.latitude, it.longitude) }
@@ -121,15 +104,14 @@ class TrackingViewModel @Inject constructor(
 
     /**
      * Captures the current session state as an immutable snapshot.
-     * Called by PostRunSummaryViewModel to build the Run object for Firestore.
+     * Called by PostRunSummaryScreen to display and then save final values.
      */
     fun sessionSnapshot(): SessionSnapshot {
+        val duration = elapsedMs.value
         return SessionSnapshot(
-            startTime = com.google.firebase.Timestamp(TrackingService.elapsedMs.value.let {
-                (System.currentTimeMillis() - it) / 1000
-            }, 0),
+            startTime = com.google.firebase.Timestamp((System.currentTimeMillis() - duration) / 1000, 0),
             endTime = com.google.firebase.Timestamp(System.currentTimeMillis() / 1000, 0),
-            durationMs = elapsedMs.value,
+            durationMs = duration,
             distanceMetres = distanceMetres.value,
             avgPaceSecPerKm = getAveragePaceSec(),
             bestPaceSecPerKm = getAveragePaceSec(),

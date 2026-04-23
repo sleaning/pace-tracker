@@ -1,6 +1,8 @@
 package com.pacetrack.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -17,6 +19,7 @@ import com.pacetrack.ui.profile.ProfileScreen
 import com.pacetrack.ui.tracking.ActiveTrackingScreen
 import com.pacetrack.ui.tracking.PostRunSummaryScreen
 import com.pacetrack.ui.tracking.PreRunScreen
+import com.pacetrack.ui.tracking.TrackingViewModel
 
 @Composable
 fun AppNavGraph(navController: NavHostController) {
@@ -91,7 +94,11 @@ fun AppNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.ActiveTracking.route) {
+        // Shared Tracking Graph Logic
+        composable(Screen.ActiveTracking.route) { backStackEntry ->
+            // Use the parent backStackEntry to scope the ViewModel if needed, 
+            // but for simplicity in this flow, we'll just use the default hiltViewModel()
+            // and ensure the Service holds the truth.
             ActiveTrackingScreen(
                 onRunFinished = { type ->
                     navController.navigate(Screen.PostRunSummary.buildRoute(type.name)) {

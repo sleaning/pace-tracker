@@ -3,6 +3,7 @@ package com.pacetrack.ui.tracking
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -43,6 +44,8 @@ import com.pacetrack.util.PaceFormatter
 import kotlinx.coroutines.launch
 import java.io.File
 
+private const val TAG = "PostRunSummaryScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostRunSummaryScreen(
@@ -55,7 +58,13 @@ fun PostRunSummaryScreen(
     val context = LocalContext.current
     val saveState by viewModel.saveState.collectAsState()
     val pendingPhotos by viewModel.pendingPhotos.collectAsState()
-    val snapshot = remember { trackingViewModel.sessionSnapshot() }
+    
+    // Immediately capture snapshot during first composition
+    val snapshot = remember { 
+        val s = trackingViewModel.sessionSnapshot() 
+        Log.d(TAG, "Captured snapshot: dist=${s.distanceMetres}, duration=${s.durationMs}, points=${s.routePoints.size}")
+        s
+    }
 
     // Navigation after save
     LaunchedEffect(saveState) {
@@ -66,14 +75,12 @@ fun PostRunSummaryScreen(
     }
 
     // ── Photo pickers ─────────────────────────────────────────────────────────
-    // Gallery picker — returns a content:// Uri directly
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { viewModel.addPhoto(it) }
     }
 
-    // Camera needs us to provide a destination Uri up front
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -93,6 +100,8 @@ fun PostRunSummaryScreen(
     val cameraPositionState = rememberCameraPositionState {
         if (polylinePoints.isNotEmpty()) {
             position = CameraPosition.fromLatLngZoom(polylinePoints.first(), 14f)
+        } else {
+            position = CameraPosition.fromLatLngZoom(LatLng(0.0, 0.0), 2f)
         }
     }
 
@@ -116,19 +125,19 @@ fun PostRunSummaryScreen(
             )
 
             // ── Map ───────────────────────────────────────────────────────────
-            if (polylinePoints.isNotEmpty()) {
-                GoogleMap(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(RoundedCornerShape(16.dp)),
-                    cameraPositionState = cameraPositionState,
-                    uiSettings = MapUiSettings(
-                        zoomControlsEnabled = false,
-                        scrollGesturesEnabled = false,
-                        zoomGesturesEnabled = false
-                    )
-                ) {
+            GoogleMap(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                cameraPositionState = cameraPositionState,
+                uiSettings = MapUiSettings(
+                    zoomControlsEnabled = false,
+                    scrollGesturesEnabled = polylinePoints.isNotEmpty(),
+                    zoomGesturesEnabled = polylinePoints.isNotEmpty()
+                )
+            ) {
+                if (polylinePoints.isNotEmpty()) {
                     Polyline(
                         points = polylinePoints,
                         color = MaterialTheme.colorScheme.primary,
@@ -225,7 +234,6 @@ fun PostRunSummaryScreen(
         }
     }
 
-    // ── Bottom sheet: Camera vs Gallery ───────────────────────────────────────
     if (showPhotoSheet) {
         ModalBottomSheet(
             onDismissRequest = { showPhotoSheet = false },
@@ -272,7 +280,6 @@ fun PostRunSummaryScreen(
     }
 }
 
-// ── Photo section ─────────────────────────────────────────────────────────────
 @Composable
 private fun PhotoSection(
     photos: List<Uri>,
@@ -310,7 +317,6 @@ private fun PhotoSection(
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(8.dp))
                         )
-                        // Remove (X) button
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -390,11 +396,6 @@ private fun StatCard(modifier: Modifier = Modifier, label: String, value: String
     }
 }
 
-/**
- * Creates a temp file in the app's external cache and returns a FileProvider
- * Uri suitable for passing to TakePicture. The camera app writes directly
- * to this Uri.
- */
 private fun createTempImageUri(context: Context): Uri {
     val timestamp = System.currentTimeMillis()
     val imageFile = File.createTempFile(

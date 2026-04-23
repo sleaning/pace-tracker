@@ -111,7 +111,9 @@ fun PostRunSummaryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Run Complete", fontWeight = FontWeight.Bold) })
+            TopAppBar(title = { Text(
+                text = if (activityType == ActivityType.RUN) "Run Complete!" else "Walk complete!",
+                fontWeight = FontWeight.Bold) })
         }
     ) { padding ->
         Column(
@@ -228,7 +230,7 @@ fun PostRunSummaryScreen(
                     } else {
                         Icon(Icons.Default.Check, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Save Run", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(if (activityType == ActivityType.RUN) "Save Run" else "Save Walk", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 

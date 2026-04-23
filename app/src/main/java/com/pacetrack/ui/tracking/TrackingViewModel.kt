@@ -19,6 +19,7 @@ import javax.inject.Inject
  * Compose so screens can survive recreation without losing the session.
  */
 data class SessionSnapshot(
+    val type: ActivityType,
     val startTime: com.google.firebase.Timestamp,
     val endTime: com.google.firebase.Timestamp,
     val durationMs: Long,
@@ -42,31 +43,16 @@ data class SessionSnapshot(
  *  2. Exposes TrackingService's companion StateFlows to the Composables.
  *  3. Survives screen rotation — the service keeps running regardless.
  *  4. Builds the final run summary values when the user stops a run.
- *
- * We expose the Service flows directly to ensure that when a new ViewModel
- * instance is created (e.g. on the Summary screen), it immediately sees
- * the current values instead of starting at zero.
  */
 @HiltViewModel
 class TrackingViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    // Selected activity type — set on PreRunScreen before starting
-    var activityType: ActivityType = ActivityType.RUN
-        private set
+    // Locally tracked type before service starts
+    private var _pendingType = ActivityType.RUN
 
-    /**
-     * Stores the activity type chosen before the run starts.
-     * The service only tracks movement, so this metadata stays in the
-     * ViewModel and is reused when the summary screen saves the session.
-     */
-    fun setActivityType(type: ActivityType) {
-        activityType = type
-    }
-
-    // ── Live data forwarded from TrackingService ──────────────────────────────
-
+    val activityType: StateFlow<ActivityType> = TrackingService.activityType
     val isTracking: StateFlow<Boolean> = TrackingService.isTracking
     val routePoints: StateFlow<List<RoutePoint>> = TrackingService.routePoints
     val distanceMetres: StateFlow<Float> = TrackingService.distanceMetres
@@ -75,12 +61,15 @@ class TrackingViewModel @Inject constructor(
     val stepCount: StateFlow<Int> = TrackingService.stepCount
     val cadence: StateFlow<Float> = TrackingService.cadence
 
-    // ── Commands ──────────────────────────────────────────────────────────────
+    fun setActivityType(type: ActivityType) {
+        _pendingType = type
+    }
 
-    /** Sends ACTION_START to TrackingService, beginning GPS updates. */
+    /** Sends ACTION_START to TrackingService with the chosen activity type. */
     fun startRun() {
         val intent = Intent(context, TrackingService::class.java).apply {
             action = TrackingService.ACTION_START
+            putExtra(TrackingService.EXTRA_ACTIVITY_TYPE, _pendingType.name)
         }
         context.startForegroundService(intent)
     }
@@ -93,55 +82,43 @@ class TrackingViewModel @Inject constructor(
         context.startService(intent)
     }
 
-    /**
-     * Builds the encoded polyline string from the current route points.
-     * Encoding shrinks the route into one compact string so the completed run
-     * can be saved as a single Firestore document instead of point documents.
-     */
     fun getEncodedPolyline(): String {
-        val latLngs = routePoints.value.map { LatLng(it.latitude, it.longitude) }
+        val points = TrackingService.routePoints.value
+        if (points.size < 2) return ""
+        val latLngs = points.map { LatLng(it.latitude, it.longitude) }
         return PolylineEncoder.encode(latLngs)
     }
 
-    /**
-     * Calculates average pace across the whole run.
-     * Returns 0f if no distance was covered.
-     * The math uses elapsed session time and total distance instead of the
-     * smoothed live pace so the saved average reflects the entire activity.
-     */
     fun getAveragePaceSec(): Float {
-        val distKm = distanceMetres.value / 1000f
+        val distKm = TrackingService.distanceMetres.value / 1000f
         if (distKm <= 0f) return 0f
-        val totalSeconds = elapsedMs.value / 1000f
+        val totalSeconds = TrackingService.elapsedMs.value / 1000f
         return totalSeconds / distKm
     }
 
     /**
-     * Captures the current session state as an immutable snapshot.
-     * Called by PostRunSummaryScreen to display and then save final values.
+     * Captures the current session state.
      */
     fun sessionSnapshot(): SessionSnapshot {
-        val duration = elapsedMs.value
+        val duration = TrackingService.elapsedMs.value
         return SessionSnapshot(
+            type = TrackingService.activityType.value, // Read the type directly from the service
             startTime = com.google.firebase.Timestamp((System.currentTimeMillis() - duration) / 1000, 0),
             endTime = com.google.firebase.Timestamp(System.currentTimeMillis() / 1000, 0),
             durationMs = duration,
-            distanceMetres = distanceMetres.value,
+            distanceMetres = TrackingService.distanceMetres.value,
             avgPaceSecPerKm = getAveragePaceSec(),
             bestPaceSecPerKm = getAveragePaceSec(),
-            stepCount = stepCount.value,
-            avgCadence = cadence.value,
+            stepCount = TrackingService.stepCount.value,
+            avgCadence = TrackingService.cadence.value,
             elevationGain = 0f,
             encodedPolyline = getEncodedPolyline(),
-            routePoints = routePoints.value
+            routePoints = TrackingService.routePoints.value
         )
     }
 
     /**
      * Resets all TrackingService state.
-     * Called AFTER PostRunSummaryScreen has read and saved the final values.
-     * Resetting earlier would erase the same flows the summary screen relies
-     * on to render its snapshot and save the completed run.
      */
     fun resetSession() {
         TrackingService.resetState()

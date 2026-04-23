@@ -21,6 +21,11 @@ import com.pacetrack.ui.tracking.PostRunSummaryScreen
 import com.pacetrack.ui.tracking.PreRunScreen
 import com.pacetrack.ui.tracking.TrackingViewModel
 
+/**
+ * Central navigation map for every top-level PaceTrack screen.
+ * This graph wires route strings to Composables and keeps screen-to-screen
+ * transitions in one place so the rest of the UI stays focused on content.
+ */
 @Composable
 fun AppNavGraph(navController: NavHostController) {
     NavHost(
@@ -65,6 +70,8 @@ fun AppNavGraph(navController: NavHostController) {
         }
 
         composable(Screen.Home.route) {
+            // Route detail is opened from both the social feed and the user's
+            // own history, so the navigation target is centralized here.
             HomeScreen(onRunClick = { runId ->
                 navController.navigate(Screen.RouteDetail.buildRoute(runId))
             })
@@ -94,11 +101,9 @@ fun AppNavGraph(navController: NavHostController) {
             )
         }
 
-        // Shared Tracking Graph Logic
         composable(Screen.ActiveTracking.route) { backStackEntry ->
-            // Use the parent backStackEntry to scope the ViewModel if needed, 
-            // but for simplicity in this flow, we'll just use the default hiltViewModel()
-            // and ensure the Service holds the truth.
+            // The service owns the live tracking state, so this screen can use
+            // the default Hilt ViewModel without losing the active session.
             ActiveTrackingScreen(
                 onRunFinished = { type ->
                     navController.navigate(Screen.PostRunSummary.buildRoute(type.name)) {
@@ -112,6 +117,8 @@ fun AppNavGraph(navController: NavHostController) {
             route = Screen.PostRunSummary.route,
             arguments = listOf(navArgument(Screen.PostRunSummary.ARG) { type = NavType.StringType })
         ) { backStackEntry ->
+            // The activity type is passed through navigation so the summary
+            // page can keep the correct copy and labels after the run stops.
             val typeStr = backStackEntry.arguments?.getString(Screen.PostRunSummary.ARG)
             val activityType = try {
                 ActivityType.valueOf(typeStr ?: "RUN")
@@ -138,6 +145,8 @@ fun AppNavGraph(navController: NavHostController) {
             route = Screen.RouteDetail.route,
             arguments = listOf(navArgument(Screen.RouteDetail.ARG) { type = NavType.StringType })
         ) { backStackEntry ->
+            // Route detail cannot render without a run id, so the graph exits
+            // early if the navigation argument is unexpectedly missing.
             val runId = backStackEntry.arguments?.getString(Screen.RouteDetail.ARG) ?: return@composable
             RouteDetailScreen(
                 runId = runId,

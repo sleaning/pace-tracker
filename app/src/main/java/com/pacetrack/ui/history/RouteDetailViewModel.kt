@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/*
+ * ViewModel for reconstructing a completed run on the detail page.
+ * It loads the saved Run, decodes its compact polyline, and fetches any
+ * attached photos so the screen can render one combined detail model.
+ */
 data class RouteDetail(
     val run: Run,
     val points: List<RoutePoint>,
@@ -28,6 +33,11 @@ sealed class RouteDetailUiState {
     data class Error(val message: String) : RouteDetailUiState()
 }
 
+/**
+ * ViewModel for the saved route detail screen.
+ * It rebuilds everything needed to render a completed activity, including
+ * the run summary, decoded path points, and any photos linked to it.
+ */
 @HiltViewModel
 class RouteDetailViewModel @Inject constructor(
     private val runRepository: RunRepository,
@@ -71,6 +81,11 @@ class RouteDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Retrieves photos using whichever saved linkage is available.
+     * Newer runs can use explicit photo ids, while older data still falls
+     * back to querying by run id without breaking the detail screen.
+     */
     private suspend fun loadPhotosSafely(run: Run): List<Photo> {
         return runCatching {
             if (run.photoIds.isNotEmpty()) {
@@ -82,6 +97,11 @@ class RouteDetailViewModel @Inject constructor(
             .getOrElse { emptyList() }
     }
 
+    /**
+     * Rebuilds route points from the encoded polyline stored on the run.
+     * Decoding is wrapped defensively so one malformed polyline does not
+     * prevent the rest of the run details from rendering.
+     */
     private fun decodePointsSafely(run: Run): List<RoutePoint> {
         if (run.encodedPolyline.isBlank()) return emptyList()
 

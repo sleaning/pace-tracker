@@ -45,7 +45,8 @@ fun ActiveTrackingScreen(
 
     var showStopDialog by remember { mutableStateOf(false) }
 
-    // Convert RoutePoints to LatLng for the map
+    // The service emits app-specific RoutePoint objects, but the map library
+    // needs LatLng instances, so the screen converts them on the fly.
     val latLngs = remember(routePoints) {
         routePoints.map { LatLng(it.latitude, it.longitude) }
     }
@@ -147,6 +148,8 @@ fun ActiveTrackingScreen(
                 Button(
                     onClick = {
                         showStopDialog = false
+                        // Stopping the service freezes the session values so
+                        // the next screen can capture and save a stable snapshot.
                         viewModel.stopRun()
                         onRunFinished(viewModel.activityType)
                     }

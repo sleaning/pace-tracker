@@ -1,7 +1,9 @@
 package com.pacetrack.util
 
 /**
- * Formats raw pace values for display in the UI.
+ * Pace formatting helpers shared across tracking, history, and feed screens.
+ * Keeping these conversions in one place ensures time and pace strings are
+ * rendered consistently anywhere the app shows run metrics.
  */
 object PaceFormatter {
 

@@ -45,7 +45,8 @@ class PhotoRepository @Inject constructor(
         val photoId = UUID.randomUUID().toString()
         val storageRef = storage.reference.child("photos/$userId/$photoId")
 
-        // 1. Upload bytes to Storage
+        // Storage is the source of truth for the file itself, while Firestore
+        // only stores metadata needed for route detail and sharing.
         storageRef.putFile(localUri).await()
 
         // 2. Grab the public download URL

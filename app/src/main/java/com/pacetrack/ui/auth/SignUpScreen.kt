@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+/**
+ * Account creation page for new PaceTrack users.
+ * This screen gathers the minimum profile details needed to register and
+ * waits for AuthViewModel to complete both auth creation and user setup.
+ */
 @Composable
 fun SignUpScreen(
     onNavigateToHome: () -> Unit,
@@ -32,6 +37,8 @@ fun SignUpScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
+    // The screen listens for the shared auth state and only navigates after
+    // Firebase auth plus the matching user document are both created.
     LaunchedEffect(uiState) {
         if (uiState is AuthUiState.Success) {
             viewModel.clearState()

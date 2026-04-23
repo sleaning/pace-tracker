@@ -21,7 +21,6 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.pacetrack.data.model.ActivityType
 import com.google.accompanist.permissions.isGranted
 
-
 /**
  * PreRunScreen
  *
@@ -42,7 +41,8 @@ fun PreRunScreen(
     onStartRun: () -> Unit,
     viewModel: TrackingViewModel = hiltViewModel()
 ) {
-    // Build the list of permissions we need to request
+    // The screen assembles only the permissions needed for the current OS
+    // version so users are not prompted for unavailable capabilities.
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -55,6 +55,8 @@ fun PreRunScreen(
     }
 
     val permissionsState = rememberMultiplePermissionsState(permissions)
+    // Fine location is the real gate for route tracking accuracy, so that is
+    // the permission used to enable or disable the start action.
     val locationGranted = permissionsState.permissions
         .any { it.permission == Manifest.permission.ACCESS_FINE_LOCATION && it.status.isGranted }
 
@@ -184,6 +186,8 @@ private fun ActivityTypeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // The visual treatment flips as soon as the selected activity changes so
+    // users get instant feedback before the run is actually started.
     val containerColor = if (selected)
         MaterialTheme.colorScheme.primaryContainer
     else

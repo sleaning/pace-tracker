@@ -7,6 +7,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 
+/**
+ * Route definitions shared across navigation, tabs, and deep links.
+ * Keeping these route strings in one sealed hierarchy prevents mismatches
+ * between where screens are declared and how callers navigate to them.
+ */
 sealed class Screen(val route: String) {
 
     // Auth
@@ -25,11 +30,17 @@ sealed class Screen(val route: String) {
     
     object PostRunSummary : Screen("post_run_summary/{activityType}") {
         const val ARG = "activityType"
+
+        // Callers use this helper so they never have to hand-build the
+        // parameterized route string expected by the NavHost.
         fun buildRoute(type: String) = "post_run_summary/$type"
     }
 
     object RouteDetail : Screen("route_detail/{runId}") {
         const val ARG = "runId"
+
+        // Route detail is always keyed by a saved run id, so the helper keeps
+        // navigation call sites compact and consistent.
         fun buildRoute(runId: String) = "route_detail/$runId"
     }
 

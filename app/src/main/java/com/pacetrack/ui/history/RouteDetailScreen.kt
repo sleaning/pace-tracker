@@ -28,6 +28,11 @@ import com.pacetrack.util.PaceFormatter
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Detailed page for one saved run or walk.
+ * It combines the decoded route map, summary metrics, and attached photos so
+ * the user can review exactly what happened during a completed activity.
+ */
 @Composable
 fun RouteDetailScreen(
     runId: String,
@@ -58,6 +63,11 @@ fun RouteDetailScreen(
     }
 }
 
+/**
+ * Success-state content for route detail once data has loaded.
+ * The screen renders a static reconstruction of the run using saved points
+ * and photos rather than depending on any live tracking session state.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RouteDetailContent(
@@ -209,6 +219,11 @@ private fun RouteDetailContent(
     }
 }
 
+/**
+ * Two-row stat layout for the route detail page.
+ * Grouping the values in a helper keeps the main screen focused on data flow
+ * while this function handles the visual arrangement of summary metrics.
+ */
 @Composable
 private fun StatGrid(run: com.pacetrack.data.model.Run) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -223,6 +238,10 @@ private fun StatGrid(run: com.pacetrack.data.model.Run) {
     }
 }
 
+/**
+ * Small reusable metric card used inside the detail stat grid.
+ * The helper keeps typography and padding consistent across all route stats.
+ */
 @Composable
 private fun DetailStatCard(modifier: Modifier = Modifier, label: String, value: String) {
     Card(

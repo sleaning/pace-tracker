@@ -45,6 +45,8 @@ object PolylineEncoder {
         var lat = 0
         var lng = 0
 
+        // Google polyline strings store delta-encoded latitude/longitude
+        // values, so decoding rebuilds each point relative to the previous one.
         while (index < encoded.length) {
             var shift = 0
             var result = 0
@@ -71,6 +73,11 @@ object PolylineEncoder {
         return points
     }
 
+    /**
+     * Encodes one signed coordinate delta into the polyline character stream.
+     * Google polyline format packs five bits at a time, which is why the loop
+     * keeps emitting characters until the remaining value fits in one chunk.
+     */
     private fun encodeValue(value: Int, result: StringBuilder) {
         var v = if (value < 0) (value shl 1).inv() else value shl 1
         while (v >= 0x20) {

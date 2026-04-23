@@ -26,6 +26,11 @@ private val MutedText = Color(0xFF4A7A5C)
 private val SurfaceGreen = Color(0xFFE9F3EC)
 private val OffWhite = Color(0xFFF5F7F2)
 
+/**
+ * Profile and social discovery page for the current user.
+ * It shows the signed-in athlete's summary, supports searching by name, and
+ * exposes follow or unfollow actions for people returned in search results.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -130,6 +135,11 @@ fun ProfileScreen(
     }
 }
 
+/**
+ * Header card for the signed-in user's own profile data.
+ * This surfaces the information most relevant to the social features without
+ * forcing the screen to build a more complex dedicated profile form yet.
+ */
 @Composable
 private fun UserHeader(user: User) {
     Card(
@@ -162,6 +172,11 @@ private fun UserHeader(user: User) {
     }
 }
 
+/**
+ * Search-result card used for follow management.
+ * The button label and click target flip based on current relationship state,
+ * which lets the screen stay declarative while the ViewModel handles updates.
+ */
 @Composable
 private fun UserSearchCard(
     user: User,

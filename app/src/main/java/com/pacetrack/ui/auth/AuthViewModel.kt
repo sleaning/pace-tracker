@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/*
+ * Shared authentication state holder for the app's auth flow.
+ * It validates form input, translates repository results into UI-friendly
+ * state, and gives all auth screens one consistent source of truth.
+ */
 /**
  * Represents the different states of the auth flow.
  * Used by SignInScreen, SignUpScreen, and SplashScreen to react to
@@ -23,11 +28,9 @@ sealed class AuthUiState {
 }
 
 /**
- * AuthViewModel
- *
  * Single ViewModel shared by SignIn, SignUp, and Splash screens.
- * State survives screen rotation — a direct rubric point
- * ("Screen rotation & lifecycle" + "ViewModels + proper storage").
+ * It owns auth form state transitions so the screens can stay declarative,
+ * and it survives rotation while Firebase calls are in flight.
  */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -40,6 +43,11 @@ class AuthViewModel @Inject constructor(
     /** Used by SplashScreen to decide Home vs SignIn. */
     fun isSignedIn(): Boolean = repository.isSignedIn()
 
+    /**
+     * Attempts a Firebase sign-in after basic client-side validation.
+     * The repository throws raw failures, and this layer converts them into
+     * states that Compose screens can render without parsing exceptions.
+     */
     fun signIn(email: String, password: String) {
         if (!validate(email, password)) return
 
@@ -54,6 +62,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Creates a new account and its paired user profile record.
+     * Display name is validated here because it belongs to the app-level
+     * profile, while email/password handling stays aligned with sign-in.
+     */
     fun signUp(email: String, password: String, displayName: String) {
         if (!validate(email, password)) return
         if (displayName.isBlank()) {
@@ -84,6 +97,11 @@ class AuthViewModel @Inject constructor(
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * Blocks obvious invalid submissions before a network round-trip.
+     * This keeps Firebase traffic down and gives the user instant feedback
+     * for common form mistakes like malformed emails or short passwords.
+     */
     private fun validate(email: String, password: String): Boolean {
         if (email.isBlank() || !email.contains("@")) {
             _uiState.value = AuthUiState.Error("Please enter a valid email")

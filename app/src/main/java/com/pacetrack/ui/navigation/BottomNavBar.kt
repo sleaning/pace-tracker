@@ -10,6 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
+/**
+ * Bottom tab bar for the app's primary destinations.
+ * It keeps Home, History, Start, and Profile one tap away while preserving
+ * the state of previously visited tabs through Compose Navigation options.
+ */
 @Composable
 fun BottomNavBar(navController: NavController, modifier: Modifier = Modifier) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -20,6 +25,8 @@ fun BottomNavBar(navController: NavController, modifier: Modifier = Modifier) {
             NavigationBarItem(
                 selected = currentRoute == item.screen.route,
                 onClick = {
+                    // saveState/restoreState lets each tab keep scroll position
+                    // and UI state instead of rebuilding from scratch every tap.
                     navController.navigate(item.screen.route) {
                         popUpTo(Screen.Home.route) { saveState = true }
                         launchSingleTop = true

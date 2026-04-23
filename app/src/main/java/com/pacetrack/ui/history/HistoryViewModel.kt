@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/*
+ * State owner for the History page.
+ * It requests the authenticated user's saved runs and exposes a single flow
+ * that the UI can pattern-match into loading, content, or error states.
+ */
 /**
  * Representing the different states of the History screen.
  * This ensures the UI can easily react to loading or error scenarios.
@@ -22,6 +27,11 @@ sealed class HistoryUiState {
     data class Error(val message: String) : HistoryUiState()
 }
 
+/**
+ * ViewModel for loading the signed-in user's run history.
+ * It asks the repository for runs tied to the current auth session and
+ * converts the result into screen-friendly state updates.
+ */
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val runRepository: RunRepository,
@@ -37,8 +47,9 @@ class HistoryViewModel @Inject constructor(
 
     /**
      * Fetches the user's runs and updates the UI state.
-     * * By using StateFlow within the ViewModel, the data survives configuration changes
-     * (like screen rotations), preventing unnecessary network calls to Firebase.
+     * StateFlow keeps the latest result across recomposition and rotation,
+     * while the auth guard prevents the repository from querying with a
+     * missing user id after sign-out or failed session restore.
      */
     fun loadRuns() {
         viewModelScope.launch {

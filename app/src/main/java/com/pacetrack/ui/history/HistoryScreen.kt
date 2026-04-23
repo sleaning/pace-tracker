@@ -26,6 +26,11 @@ import com.pacetrack.util.PaceFormatter
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * History page for the signed-in user's saved activities.
+ * It renders loading, error, empty, and success states from HistoryViewModel
+ * and lets users drill into a specific route for full detail.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -93,6 +98,11 @@ fun HistoryScreen(
     }
 }
 
+/**
+ * Summary row for one past run or walk entry.
+ * The card is clickable because route detail is the next level of depth,
+ * so the summary only surfaces the most useful at-a-glance stats.
+ */
 @Composable
 private fun RunHistoryCard(run: Run, onClick: () -> Unit) {
     val dateFormat = SimpleDateFormat("EEE, MMM d • h:mm a", Locale.getDefault())
@@ -167,6 +177,11 @@ private fun RunHistoryCard(run: Run, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Friendly empty state shown when no activities have been recorded.
+ * This keeps the History tab purposeful for first-time users who have not
+ * completed a run yet.
+ */
 @Composable
 private fun EmptyHistoryPlaceholder(modifier: Modifier = Modifier) {
     Column(

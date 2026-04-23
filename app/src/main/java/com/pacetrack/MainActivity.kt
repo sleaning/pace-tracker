@@ -14,6 +14,11 @@ import com.pacetrack.ui.navigation.Screen
 import com.pacetrack.ui.theme.PaceTrackTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Main entry activity for the PaceTrack app.
+ * It creates the Compose host, owns the shared NavController, and decides
+ * when the bottom navigation should disappear for full-screen flows.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +30,8 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
+                // Auth, live tracking, and detail screens need the full height,
+                // so the persistent bottom navigation is suppressed there.
                 val hideBottomNav = currentRoute in listOf(
                     Screen.Splash.route,
                     Screen.SignIn.route,

@@ -13,6 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 
+/**
+ * Lightweight launch screen shown while auth state is checked.
+ * The delay is intentional so the brand screen is visible, then routing is
+ * delegated to AuthViewModel to decide between Home and Sign In.
+ */
 @Composable
 fun SplashScreen(
     onNavigateToHome: () -> Unit,
@@ -22,6 +27,8 @@ fun SplashScreen(
     LaunchedEffect(Unit) {
         // Small delay so the user actually sees the splash instead of a flash.
         delay(600)
+        // Splash does not own auth logic; it only asks the shared ViewModel
+        // whether a persisted Firebase session already exists.
         if (viewModel.isSignedIn()) {
             onNavigateToHome()
         } else {

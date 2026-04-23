@@ -43,6 +43,11 @@ import com.pacetrack.util.PaceFormatter
 import kotlinx.coroutines.launch
 import java.io.File
 
+/**
+ * Post-run review page shown immediately after tracking stops.
+ * It freezes the latest session stats into a snapshot, lets the user attach
+ * photos, and then either saves the completed run or discards it.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostRunSummaryScreen(
@@ -57,7 +62,11 @@ fun PostRunSummaryScreen(
     val pendingPhotos by viewModel.pendingPhotos.collectAsState()
     val snapshot = remember { trackingViewModel.sessionSnapshot() }
 
-    // Navigation after save
+    // The snapshot is captured once when this screen opens so distance, pace,
+    // and route data stay stable even if other state changes during saving.
+
+    // Navigation happens only after the save state reaches Saved, which means
+    // the run document and any uploaded photos have both completed.
     LaunchedEffect(saveState) {
         if (saveState is SaveState.Saved) {
             trackingViewModel.resetSession()
@@ -201,6 +210,8 @@ fun PostRunSummaryScreen(
 
                 OutlinedButton(
                     onClick = {
+                        // Discard intentionally clears the session without
+                        // writing anything so the next run starts clean.
                         trackingViewModel.resetSession()
                         onDiscarded()
                     },
@@ -272,7 +283,11 @@ fun PostRunSummaryScreen(
     }
 }
 
-// ── Photo section ─────────────────────────────────────────────────────────────
+/**
+ * Preview strip for photos the user has added before saving.
+ * The section keeps image selection local to the summary page so uploads only
+ * happen if the user actually confirms they want to save the run.
+ */
 @Composable
 private fun PhotoSection(
     photos: List<Uri>,
@@ -335,6 +350,11 @@ private fun PhotoSection(
     }
 }
 
+/**
+ * Bottom-sheet action row for choosing a photo source.
+ * It keeps the sheet body small and makes camera and gallery actions share
+ * the same layout and typography.
+ */
 @Composable
 private fun PhotoSourceButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -352,6 +372,11 @@ private fun PhotoSourceButton(
     }
 }
 
+/**
+ * Two-column stat row used by the summary page.
+ * The helper keeps the save screen readable by moving repeated layout code
+ * away from the higher-level summary flow.
+ */
 @Composable
 private fun StatRow(label1: String, value1: String, label2: String, value2: String) {
     Row(
@@ -363,6 +388,11 @@ private fun StatRow(label1: String, value1: String, label2: String, value2: Stri
     }
 }
 
+/**
+ * Individual summary metric card for the post-run review page.
+ * Each card emphasizes one saved value while sharing consistent styling with
+ * the rest of the stats grid.
+ */
 @Composable
 private fun StatCard(modifier: Modifier = Modifier, label: String, value: String) {
     Card(

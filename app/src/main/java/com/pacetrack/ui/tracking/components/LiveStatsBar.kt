@@ -70,6 +70,11 @@ fun LiveStatsBar(
     }
 }
 
+/**
+ * One labeled metric cell inside the live stats bar.
+ * Separating it from the row keeps the tracking screen focused on data flow
+ * while this helper handles typography for each live metric.
+ */
 @Composable
 private fun StatColumn(
     label: String,
@@ -96,6 +101,10 @@ private fun StatColumn(
     }
 }
 
+/**
+ * Thin vertical separator between live stat groups.
+ * It gives the bottom bar more structure without adding another container.
+ */
 @Composable
 private fun StatDivider() {
     Box(

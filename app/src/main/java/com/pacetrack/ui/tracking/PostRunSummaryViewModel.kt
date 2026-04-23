@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel responsible for turning a finished session into saved data.
+ * It keeps temporary photo selections in memory and coordinates the final
+ * upload-and-save sequence once the user confirms the run summary.
+ */
 sealed class SaveState {
     object Idle : SaveState()
     object Saving : SaveState()
@@ -37,10 +42,19 @@ class PostRunSummaryViewModel @Inject constructor(
     private val _pendingPhotos = MutableStateFlow<List<Uri>>(emptyList())
     val pendingPhotos: StateFlow<List<Uri>> = _pendingPhotos.asStateFlow()
 
+    /**
+     * Adds a locally selected image to the pending queue.
+     * The Uri is kept local until save time so users can remove photos
+     * without leaving orphaned uploads behind in Firebase Storage.
+     */
     fun addPhoto(uri: Uri) {
         _pendingPhotos.value = _pendingPhotos.value + uri
     }
 
+    /**
+     * Removes a photo from the pending queue before upload.
+     * Because uploads have not started yet, this is just a local list update.
+     */
     fun removePhoto(uri: Uri) {
         _pendingPhotos.value = _pendingPhotos.value - uri
     }
@@ -70,14 +84,15 @@ class PostRunSummaryViewModel @Inject constructor(
         viewModelScope.launch {
             _saveState.value = SaveState.Saving
             try {
-                // 1. Upload photos first (tagged at the run's last known location)
+                // Photos are tagged with the final known route point so the
+                // route detail page can place them back on the finished map.
                 val lastPoint = snapshot.routePoints.lastOrNull()
                 val photoLat = lastPoint?.latitude ?: 0.0
                 val photoLng = lastPoint?.longitude ?: 0.0
 
                 val photoIds = mutableListOf<String>()
-                // We need to know the runId before uploading photos so they can link to it.
-                // Generate it client-side here; FirestoreService.saveRun will use it.
+                // The run id is created first so every uploaded photo can point
+                // at its future parent run document before that document exists.
                 val runId = java.util.UUID.randomUUID().toString()
 
                 for (uri in _pendingPhotos.value) {

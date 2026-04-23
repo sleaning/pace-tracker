@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel for the Home feed page.
+ * It joins the current user's following list with the run repository so the
+ * UI can render a social feed without talking to Firebase directly.
+ */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val userRepository: UserRepository,
@@ -28,6 +33,11 @@ class HomeViewModel @Inject constructor(
         loadFeed()
     }
 
+    /**
+     * Loads public runs for the accounts the current user follows.
+     * The view model first fetches the user profile because the following ids
+     * live there, then uses those ids to request the feed content itself.
+     */
     fun loadFeed() {
         viewModelScope.launch {
             _isLoading.value = true

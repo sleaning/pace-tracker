@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+/**
+ * Sign-in page for returning PaceTrack users.
+ * It collects local text-field input, reacts to AuthViewModel state, and
+ * forwards successful authentication to the app's main navigation flow.
+ */
 @Composable
 fun SignInScreen(
     onNavigateToHome: () -> Unit,
@@ -31,8 +36,9 @@ fun SignInScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    // Navigate on successful sign-in. clearState() resets before leaving so
-    // coming back to this screen doesn't immediately route again.
+    // Success is consumed here instead of inside the ViewModel because
+    // navigation is a UI concern. clearState prevents stale success state
+    // from retriggering this effect after recomposition or back navigation.
     LaunchedEffect(uiState) {
         if (uiState is AuthUiState.Success) {
             viewModel.clearState()

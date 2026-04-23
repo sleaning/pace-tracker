@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel backing the Profile page and social interactions.
+ * It keeps the signed-in user's profile, search results, and follow state in
+ * one place so the Compose screen only reacts to observable state changes.
+ */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
@@ -61,6 +66,11 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Starts following another user and refreshes the current profile.
+     * The refresh is important because the Profile screen derives button state
+     * from the authenticated user's following list, not from cached optimism.
+     */
     fun followUser(targetUserId: String) {
         viewModelScope.launch {
             userRepository.followUser(targetUserId)
@@ -69,6 +79,11 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Stops following another user and then reloads local profile state.
+     * Re-fetching avoids mismatches between Firestore and the search list if
+     * the user taps follow actions quickly.
+     */
     fun unfollowUser(targetUserId: String) {
         viewModelScope.launch {
             userRepository.unfollowUser(targetUserId)
@@ -77,6 +92,11 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Searches by display name as the user types.
+     * Blank queries short-circuit locally so the repository is only called
+     * when there is enough text to produce a meaningful result set.
+     */
     fun searchUsers(query: String) {
         if (query.isBlank()) {
             _searchResults.value = emptyList()

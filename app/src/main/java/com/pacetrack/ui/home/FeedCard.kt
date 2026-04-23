@@ -19,6 +19,11 @@ import com.pacetrack.util.PaceFormatter
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Reusable card used by the home feed to summarize a saved run.
+ * It condenses the most glanceable facts into one row so users can decide
+ * whether to open route detail for the full map and stats.
+ */
 @Composable
 fun FeedCard(run: Run, onClick: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
@@ -70,6 +75,11 @@ fun FeedCard(run: Run, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Small stat block used inside feed cards.
+ * Separating it into a helper keeps the card layout readable while making
+ * the repeated distance, duration, and pace treatment consistent.
+ */
 @Composable
 private fun StatChip(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {

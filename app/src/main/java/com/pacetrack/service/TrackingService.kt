@@ -27,6 +27,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "TrackingService"
 
+/**
+ * Foreground service that owns the active tracking session.
+ * It listens to GPS and step sensor updates, keeps long-running state alive
+ * off-screen, and publishes the latest values through shared StateFlows.
+ */
 class TrackingService : Service(), SensorEventListener {
 
     companion object {
@@ -57,6 +62,11 @@ class TrackingService : Service(), SensorEventListener {
         private val _cadence = MutableStateFlow(0f)
         val cadence: StateFlow<Float> = _cadence.asStateFlow()
 
+        /**
+         * Clears all shared session state after a run is saved or discarded.
+         * The flows live in the companion object, so they must be reset
+         * manually before the next session begins.
+         */
         fun resetState() {
             Log.d(TAG, "resetState called")
             _isTracking.value     = false
@@ -122,6 +132,11 @@ class TrackingService : Service(), SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
+    /**
+     * Starts the live session and moves the service into the foreground.
+     * Foreground mode keeps the process alive while location updates and the
+     * elapsed-time ticker continue even when the UI is no longer visible.
+     */
     private fun startTracking() {
         if (_isTracking.value) return
         Log.d(TAG, "startTracking")
@@ -140,6 +155,11 @@ class TrackingService : Service(), SensorEventListener {
         }
     }
 
+    /**
+     * Stops sensors, location updates, and the foreground notification.
+     * The latest values remain in the shared flows so the summary screen can
+     * still read them after tracking has ended.
+     */
     private fun stopTracking() {
         Log.d(TAG, "stopTracking. Final distance: ${_distanceMetres.value}, Duration: ${_elapsedMs.value}")
         _isTracking.value = false
@@ -153,6 +173,8 @@ class TrackingService : Service(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_STEP_COUNTER) return
         val totalSteps = event.values[0].toInt()
+        // TYPE_STEP_COUNTER is cumulative since boot, so the baseline locks in
+        // the value seen at session start and subtracts it from later updates.
         if (stepBaseline == -1 || totalSteps < stepBaseline) {
             stepBaseline = totalSteps
         }
@@ -183,6 +205,11 @@ class TrackingService : Service(), SensorEventListener {
         fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
     }
 
+    /**
+     * Consumes one GPS update and rolls it into route, distance, and pace.
+     * Each location becomes a saved RoutePoint, then the service compares it
+     * with the previous fix to increment distance and refresh live pace.
+     */
     private fun onNewLocation(location: Location) {
         Log.d(TAG, "onNewLocation: lat=${location.latitude}, lng=${location.longitude}, acc=${location.accuracy}")
         val newPoint = RoutePoint(
@@ -212,6 +239,11 @@ class TrackingService : Service(), SensorEventListener {
         _currentPaceSec.value = calculateSmoothedPace()
     }
 
+    /**
+     * Calculates a rolling pace across the most recent location window.
+     * Using several segments instead of one point-to-point jump smooths out
+     * GPS jitter so the live pace display is less noisy.
+     */
     private fun calculateSmoothedPace(): Float {
         if (recentLocations.size < 2) return 0f
         var totalDistM  = 0f
@@ -229,11 +261,20 @@ class TrackingService : Service(), SensorEventListener {
         return secondsPerMetre * 1000f
     }
 
+    /**
+     * Creates the notification channel required for foreground tracking.
+     * Android only needs this once, but creating it repeatedly is safe.
+     */
     private fun createNotificationChannel() {
         val channel = NotificationChannel(CHANNEL_ID, "Run Tracking", NotificationManager.IMPORTANCE_LOW)
         notificationManager.createNotificationChannel(channel)
     }
 
+    /**
+     * Builds the ongoing notification users see during a run.
+     * The content mirrors the most important live stats so progress is still
+     * visible when the app is backgrounded.
+     */
     private fun buildNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
         .setContentTitle("Run in progress")
         .setContentText("${DistanceFormatter.format(_distanceMetres.value)} • ${PaceFormatter.formatElapsed(_elapsedMs.value)}")
@@ -247,6 +288,11 @@ class TrackingService : Service(), SensorEventListener {
         notificationManager.notify(NOTIFICATION_ID, buildNotification())
     }
 
+    /**
+     * Creates the PendingIntent used when the notification is tapped.
+     * Returning to MainActivity brings the user back to the Compose app shell,
+     * which then restores the active tracking screen from shared state.
+     */
     private fun openAppIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java)
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

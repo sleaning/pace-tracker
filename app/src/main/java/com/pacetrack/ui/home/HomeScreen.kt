@@ -21,6 +21,11 @@ private val DeepForest = Color(0xFF1B4332)  // Headings, page titles
 private val MutedText = Color(0xFF4A7A5C)   // Secondary labels, timestamps
 private val OffWhite = Color(0xFFF5F7F2)    // App background
 
+/**
+ * Social feed page showing recent public runs from followed users.
+ * The screen reacts to loading state from HomeViewModel and either renders
+ * a progress indicator, an empty state, or tappable feed cards.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -67,6 +72,11 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Empty-state content for users who are not following anyone yet.
+ * This keeps the feed page informative instead of looking broken when the
+ * backend correctly returns an empty list of runs.
+ */
 @Composable
 private fun EmptyFeedMessage(modifier: Modifier = Modifier) {
     Column(

@@ -1,7 +1,9 @@
 package com.pacetrack.util
 
 /**
- * Formats raw distance values for display in the UI.
+ * Distance formatting helpers used across PaceTrack screens.
+ * Centralizing this logic keeps metres and kilometre labels consistent in
+ * live tracking, summaries, history cards, and route detail views.
  */
 object DistanceFormatter {
 

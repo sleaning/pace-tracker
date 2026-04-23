@@ -13,6 +13,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
+/*
+ * ViewModel layer for the live tracking flow.
+ * It forwards commands to the foreground service and exposes service state to
+ * Compose so screens can survive recreation without losing the session.
+ */
 data class SessionSnapshot(
     val startTime: com.google.firebase.Timestamp,
     val endTime: com.google.firebase.Timestamp,
@@ -51,6 +56,11 @@ class TrackingViewModel @Inject constructor(
     var activityType: ActivityType = ActivityType.RUN
         private set
 
+    /**
+     * Stores the activity type chosen before the run starts.
+     * The service only tracks movement, so this metadata stays in the
+     * ViewModel and is reused when the summary screen saves the session.
+     */
     fun setActivityType(type: ActivityType) {
         activityType = type
     }
@@ -85,6 +95,8 @@ class TrackingViewModel @Inject constructor(
 
     /**
      * Builds the encoded polyline string from the current route points.
+     * Encoding shrinks the route into one compact string so the completed run
+     * can be saved as a single Firestore document instead of point documents.
      */
     fun getEncodedPolyline(): String {
         val latLngs = routePoints.value.map { LatLng(it.latitude, it.longitude) }
@@ -94,6 +106,8 @@ class TrackingViewModel @Inject constructor(
     /**
      * Calculates average pace across the whole run.
      * Returns 0f if no distance was covered.
+     * The math uses elapsed session time and total distance instead of the
+     * smoothed live pace so the saved average reflects the entire activity.
      */
     fun getAveragePaceSec(): Float {
         val distKm = distanceMetres.value / 1000f
@@ -126,6 +140,8 @@ class TrackingViewModel @Inject constructor(
     /**
      * Resets all TrackingService state.
      * Called AFTER PostRunSummaryScreen has read and saved the final values.
+     * Resetting earlier would erase the same flows the summary screen relies
+     * on to render its snapshot and save the completed run.
      */
     fun resetSession() {
         TrackingService.resetState()

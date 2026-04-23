@@ -154,6 +154,24 @@ class FirestoreService @Inject constructor(
             .get().await().toObject(User::class.java)
 
     /**
+     * Loads multiple user profiles while preserving the requested id order.
+     * Chunking keeps the query within Firestore's `whereIn` operand limit.
+     */
+    suspend fun getUsers(userIds: List<String>): List<User> {
+        val distinctIds = userIds.distinct().filter { it.isNotBlank() }
+        if (distinctIds.isEmpty()) return emptyList()
+
+        val usersById = distinctIds.chunked(30).flatMap { chunk ->
+            firestore.collection("users")
+                .whereIn(FieldPath.documentId(), chunk)
+                .get().await()
+                .toObjects(User::class.java)
+        }.associateBy { it.id }
+
+        return distinctIds.mapNotNull(usersById::get)
+    }
+
+    /**
      * Searches users by a normalized name prefix.
      * Newer documents query against the lowercase `searchName` field, while a
      * display-name fallback keeps older mixed-case documents searchable until

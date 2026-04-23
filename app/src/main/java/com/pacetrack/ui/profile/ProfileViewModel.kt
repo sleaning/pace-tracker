@@ -2,9 +2,7 @@ package com.pacetrack.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.FirebaseAuth
 import com.pacetrack.data.model.User
-import com.pacetrack.data.model.repository.RunRepository
 import com.pacetrack.data.model.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,14 +18,15 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val userRepository: UserRepository,
-    private val runRepository: RunRepository,
-    private val auth: FirebaseAuth
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     // The authenticated user's own profile data
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+
+    private val _followedUsers = MutableStateFlow<List<User>>(emptyList())
+    val followedUsers: StateFlow<List<User>> = _followedUsers.asStateFlow()
 
     // Data for a profile being visited (for social/search)
     private val _viewedUser = MutableStateFlow<User?>(null)
@@ -42,6 +41,9 @@ class ProfileViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _isLoadingFollowedUsers = MutableStateFlow(false)
+    val isLoadingFollowedUsers: StateFlow<Boolean> = _isLoadingFollowedUsers.asStateFlow()
+
     init {
         loadCurrentUser()
     }
@@ -51,7 +53,14 @@ class ProfileViewModel @Inject constructor(
      */
     fun loadCurrentUser() {
         viewModelScope.launch {
-            _currentUser.value = userRepository.getCurrentUser()
+            _isLoadingFollowedUsers.value = true
+            val user = userRepository.getCurrentUser()
+            _currentUser.value = user
+            _followedUsers.value = user?.following
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { userRepository.getUsers(it) }
+                ?: emptyList()
+            _isLoadingFollowedUsers.value = false
         }
     }
 

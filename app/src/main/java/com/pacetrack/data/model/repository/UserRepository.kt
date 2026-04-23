@@ -28,6 +28,8 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun getUser(userId: String): User? = firestoreService.getUser(userId)
+
+    suspend fun getUsers(userIds: List<String>): List<User> = firestoreService.getUsers(userIds)
     
     /**
      * Returns the signed-in user's profile document when available.

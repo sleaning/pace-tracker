@@ -39,6 +39,8 @@ fun ProfileScreen(
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val followedUsers by viewModel.followedUsers.collectAsStateWithLifecycle()
+    val isLoadingFollowedUsers by viewModel.isLoadingFollowedUsers.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
 
@@ -78,6 +80,35 @@ fun ProfileScreen(
             item {
                 currentUser?.let { user ->
                     UserHeader(user = user)
+                }
+            }
+
+            if (currentUser != null) {
+                item {
+                    Text(
+                        text = "Following",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = DeepForest
+                    )
+                }
+
+                if (isLoadingFollowedUsers && followedUsers.isEmpty()) {
+                    item {
+                        FollowingLoadingCard()
+                    }
+                } else if (followedUsers.isEmpty()) {
+                    item {
+                        EmptyFollowingCard()
+                    }
+                } else {
+                    items(followedUsers, key = { it.id }) { user ->
+                        UserSearchCard(
+                            user = user,
+                            isFollowing = true,
+                            onFollow = {},
+                            onUnfollow = { viewModel.unfollowUser(user.id) }
+                        )
+                    }
                 }
             }
 
@@ -166,6 +197,68 @@ private fun UserHeader(user: User) {
                     "Following ${user.following.size} athletes",
                     style = MaterialTheme.typography.labelMedium,
                     color = SageGreen
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FollowingLoadingCard() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = ForestGreen
+            )
+            Text(
+                text = "Loading followed athletes...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MutedText
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyFollowingCard() {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Group,
+                contentDescription = null,
+                tint = SageGreen,
+                modifier = Modifier.size(32.dp)
+            )
+            Column {
+                Text(
+                    text = "You're not following anyone yet",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = DeepForest
+                )
+                Text(
+                    text = "Search for friends below to build your activity feed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MutedText
                 )
             }
         }

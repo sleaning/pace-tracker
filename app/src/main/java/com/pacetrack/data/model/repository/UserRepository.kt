@@ -5,6 +5,9 @@ import com.pacetrack.data.model.User
 import com.pacetrack.data.model.remote.FirestoreService
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Repository for user profiles and follow relationships.
@@ -17,6 +20,8 @@ class UserRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) {
     private val currentUserId get() = auth.currentUser?.uid ?: ""
+    private val _followingVersion = MutableStateFlow(0L)
+    val followingVersion: StateFlow<Long> = _followingVersion.asStateFlow()
     
     suspend fun createUser(user: User) {
         firestoreService.saveUser(user)
@@ -51,6 +56,7 @@ class UserRepository @Inject constructor(
     suspend fun followUser(targetUserId: String) {
         if (currentUserId.isNotEmpty()) {
             firestoreService.followUser(currentUserId, targetUserId)
+            _followingVersion.value = System.currentTimeMillis()
         }
     }
 
@@ -62,6 +68,7 @@ class UserRepository @Inject constructor(
     suspend fun unfollowUser(targetUserId: String) {
         if (currentUserId.isNotEmpty()) {
             firestoreService.unfollowUser(currentUserId, targetUserId)
+            _followingVersion.value = System.currentTimeMillis()
         }
     }
 

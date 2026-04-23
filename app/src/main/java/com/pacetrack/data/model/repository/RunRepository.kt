@@ -17,6 +17,8 @@ class RunRepository @Inject constructor(
     // while Firestore-specific query details remain in FirestoreService.
     suspend fun saveRun(run: Run) = firestoreService.saveRun(run)
     suspend fun getRuns(userId: String) = firestoreService.getRuns(userId)
+    suspend fun getRecentRuns(userId: String, limit: Long) = firestoreService.getRecentRuns(userId, limit)
+    suspend fun getRecentPublicRuns(limit: Long) = firestoreService.getRecentPublicRuns(limit)
     suspend fun getFollowingRuns(followingIds: List<String>) =
         firestoreService.getFollowingRuns(followingIds)
     suspend fun getRunById(runId: String) = firestoreService.getRunById(runId)

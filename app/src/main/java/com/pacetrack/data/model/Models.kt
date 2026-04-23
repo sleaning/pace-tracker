@@ -1,6 +1,7 @@
 package com.pacetrack.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.PropertyName
 
 /*
  * Core data models shared by the whole PaceTrack app.
@@ -27,7 +28,9 @@ data class Run(
     val elevationGain: Float = 0f,
     val encodedPolyline: String = "",
     val photoIds: List<String> = emptyList(),
-    val isPublic: Boolean = true
+    @get:PropertyName("public")
+    @set:PropertyName("public")
+    var isPublic: Boolean = true
 )
 
 /**

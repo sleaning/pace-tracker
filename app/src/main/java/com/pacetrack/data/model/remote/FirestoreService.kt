@@ -21,6 +21,13 @@ import javax.inject.Singleton
 class FirestoreService @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
+    private companion object {
+        const val FEED_QUERY_CHUNK_SIZE = 30
+        const val FEED_BATCH_QUERY_LIMIT = 50L
+        const val FEED_FALLBACK_PER_USER_LIMIT = 10L
+        const val FEED_TOTAL_LIMIT = 50
+    }
+
     /**
      * Saves a run using its existing id when present or a generated id when not.
      * Returning the final id lets callers attach related data such as photos
@@ -53,6 +60,24 @@ class FirestoreService @Inject constructor(
         return firestore.collection("runs")
             .whereEqualTo("userId", userId)
             .orderBy("startTime", Query.Direction.DESCENDING)
+            .get().await()
+            .toObjects(Run::class.java)
+    }
+
+    suspend fun getRecentRuns(userId: String, limit: Long): List<Run> {
+        return firestore.collection("runs")
+            .whereEqualTo("userId", userId)
+            .orderBy("startTime", Query.Direction.DESCENDING)
+            .limit(limit)
+            .get().await()
+            .toObjects(Run::class.java)
+    }
+
+    suspend fun getRecentPublicRuns(limit: Long): List<Run> {
+        return firestore.collection("runs")
+            .whereEqualTo("public", true)
+            .orderBy("startTime", Query.Direction.DESCENDING)
+            .limit(limit)
             .get().await()
             .toObjects(Run::class.java)
     }
@@ -126,19 +151,35 @@ class FirestoreService @Inject constructor(
 
     /**
      * Loads public runs for the ids the current user follows.
-     * Firestore limits `whereIn` queries, so ids are chunked and the combined
-     * result is sorted again before being returned to the feed.
+     * Firestore limits `whereIn` queries, so ids are chunked. Some projects
+     * also require a composite index for the batched social query, so this
+     * method falls back to small per-user recent queries that reuse the same
+     * query shape as the working History screen.
      */
     suspend fun getFollowingRuns(followingIds: List<String>): List<Run> {
-        if (followingIds.isEmpty()) return emptyList()
-        return followingIds.chunked(30).flatMap { chunk ->
-            firestore.collection("runs")
-                .whereIn("userId", chunk)
-                .whereEqualTo("isPublic", true)
-                .orderBy("startTime", Query.Direction.DESCENDING)
-                .limit(50)
-                .get().await()
-                .toObjects(Run::class.java)
-        }.sortedByDescending { it.startTime }
+        val distinctIds = followingIds.distinct().filter { it.isNotBlank() }
+        if (distinctIds.isEmpty()) return emptyList()
+
+        val runs = runCatching {
+            distinctIds.chunked(FEED_QUERY_CHUNK_SIZE).flatMap { chunk ->
+                firestore.collection("runs")
+                    .whereIn("userId", chunk)
+                    .whereEqualTo("public", true)
+                    .orderBy("startTime", Query.Direction.DESCENDING)
+                    .limit(FEED_BATCH_QUERY_LIMIT)
+                    .get().await()
+                    .toObjects(Run::class.java)
+            }
+        }.getOrElse {
+            distinctIds.flatMap { userId ->
+                getRecentRuns(userId, FEED_FALLBACK_PER_USER_LIMIT)
+            }
+        }
+
+        return runs
+            .filter { it.isPublic }
+            .sortedByDescending { it.startTime }
+            .distinctBy { it.id }
+            .take(FEED_TOTAL_LIMIT)
     }
 }

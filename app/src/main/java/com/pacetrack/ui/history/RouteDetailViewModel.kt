@@ -9,7 +9,7 @@ import com.pacetrack.data.model.Run
 import com.pacetrack.data.model.repository.RunRepository
 import com.pacetrack.util.PolylineEncoder
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,31 +53,45 @@ class RouteDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = RouteDetailUiState.Loading
             try {
-                val runDeferred = async { runRepository.getRunById(runId) }
-                val photosDeferred = async { runRepository.getPhotosForRun(runId) }
-
-                val run = runDeferred.await()
+                val run = runRepository.getRunById(runId)
                     ?: throw IllegalStateException("Run not found")
-                val photos = photosDeferred.await()
-
-                // Decode the polyline into RoutePoints for the map.
-                val points = if (run.encodedPolyline.isNotBlank()) {
-                    PolylineEncoder.decode(run.encodedPolyline).map { latLng ->
-                        RoutePoint(
-                            latitude = latLng.latitude,
-                            longitude = latLng.longitude
-                        )
-                    }
-                } else {
-                    emptyList()
-                }
 
                 _uiState.value = RouteDetailUiState.Success(
-                    RouteDetail(run, points, photos)
+                    RouteDetail(
+                        run = run,
+                        points = decodePointsSafely(run),
+                        photos = loadPhotosSafely(run)
+                    )
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = RouteDetailUiState.Error(e.message ?: "Failed to load route")
             }
         }
+    }
+
+    private suspend fun loadPhotosSafely(run: Run): List<Photo> {
+        return runCatching {
+            if (run.photoIds.isNotEmpty()) {
+                runRepository.getPhotosByIds(run.photoIds)
+            } else {
+                runRepository.getPhotosForRun(run.id)
+            }
+        }
+            .getOrElse { emptyList() }
+    }
+
+    private fun decodePointsSafely(run: Run): List<RoutePoint> {
+        if (run.encodedPolyline.isBlank()) return emptyList()
+
+        return runCatching {
+            PolylineEncoder.decode(run.encodedPolyline).map { latLng ->
+                RoutePoint(
+                    latitude = latLng.latitude,
+                    longitude = latLng.longitude
+                )
+            }
+        }.getOrElse { emptyList() }
     }
 }

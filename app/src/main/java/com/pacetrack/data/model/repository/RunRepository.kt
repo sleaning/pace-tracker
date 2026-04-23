@@ -15,5 +15,5 @@ class RunRepository @Inject constructor(
     suspend fun getRunById(runId: String) = firestoreService.getRunById(runId)
     suspend fun getRoutePoints(runId: String) = firestoreService.getRoutePoints(runId)
     suspend fun getPhotosForRun(runId: String) = firestoreService.getPhotosForRun(runId)
-
+    suspend fun getPhotosByIds(photoIds: List<String>) = firestoreService.getPhotosByIds(photoIds)
 }

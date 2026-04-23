@@ -1,5 +1,6 @@
 package com.pacetrack.data.model.remote
 
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -60,9 +61,20 @@ class FirestoreService @Inject constructor(
     suspend fun getPhotosForRun(runId: String): List<Photo> {
         return firestore.collection("photos")
             .whereEqualTo("runId", runId)
-            .orderBy("timestamp")
             .get().await()
             .toObjects(Photo::class.java)
+            .sortedBy { it.timestamp }
+    }
+
+    suspend fun getPhotosByIds(photoIds: List<String>): List<Photo> {
+        if (photoIds.isEmpty()) return emptyList()
+
+        return photoIds.chunked(30).flatMap { chunk ->
+            firestore.collection("photos")
+                .whereIn(FieldPath.documentId(), chunk)
+                .get().await()
+                .toObjects(Photo::class.java)
+        }.sortedBy { it.timestamp }
     }
 
     suspend fun getUser(userId: String): User? =

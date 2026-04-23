@@ -53,7 +53,7 @@
         <!-- FileProvider for handing temp camera files to the camera app -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
+            android:authorities="${applicationId}.FileProvider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

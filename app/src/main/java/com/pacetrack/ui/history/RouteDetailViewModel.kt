@@ -1,11 +1,14 @@
 package com.pacetrack.ui.history
 
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestoreException
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pacetrack.data.model.Photo
 import com.pacetrack.data.model.RoutePoint
 import com.pacetrack.data.model.Run
+import com.pacetrack.data.model.repository.PhotoRepository
 import com.pacetrack.data.model.repository.RunRepository
 import com.pacetrack.util.PolylineEncoder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +27,8 @@ import javax.inject.Inject
 data class RouteDetail(
     val run: Run,
     val points: List<RoutePoint>,
-    val photos: List<Photo>
+    val photos: List<Photo>,
+    val canManage: Boolean
 )
 
 sealed class RouteDetailUiState {
@@ -41,6 +45,8 @@ sealed class RouteDetailUiState {
 @HiltViewModel
 class RouteDetailViewModel @Inject constructor(
     private val runRepository: RunRepository,
+    private val photoRepository: PhotoRepository,
+    private val auth: FirebaseAuth,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -70,7 +76,8 @@ class RouteDetailViewModel @Inject constructor(
                     RouteDetail(
                         run = run,
                         points = decodePointsSafely(run),
-                        photos = loadPhotosSafely(run)
+                        photos = loadPhotosSafely(run),
+                        canManage = isOwnedByCurrentUser(run)
                     )
                 )
             } catch (e: CancellationException) {
@@ -79,6 +86,44 @@ class RouteDetailViewModel @Inject constructor(
                 _uiState.value = RouteDetailUiState.Error(e.message ?: "Failed to load route")
             }
         }
+    }
+
+    suspend fun updateRunTitle(title: String): Result<Unit> {
+        val currentState = _uiState.value as? RouteDetailUiState.Success
+            ?: return Result.failure(IllegalStateException("Run detail is not loaded"))
+        if (!currentState.detail.canManage) {
+            return Result.failure(IllegalStateException("You can only edit your own activities."))
+        }
+
+        val normalizedTitle = title.trim()
+        if (currentState.detail.run.title == normalizedTitle) {
+            return Result.success(Unit)
+        }
+
+        return runCatching {
+            runRepository.updateRunTitle(runId, normalizedTitle)
+            _uiState.value = RouteDetailUiState.Success(
+                currentState.detail.copy(
+                    run = currentState.detail.run.copy(title = normalizedTitle)
+                )
+            )
+        }.mapActionErrors("edit this activity")
+    }
+
+    suspend fun deleteRun(): Result<Unit> {
+        val currentState = _uiState.value as? RouteDetailUiState.Success
+            ?: return Result.failure(IllegalStateException("Run detail is not loaded"))
+        if (!currentState.detail.canManage) {
+            return Result.failure(IllegalStateException("You can only delete your own activities."))
+        }
+
+        return runCatching {
+            val photos = loadPhotosSafely(currentState.detail.run)
+            photos.forEach { photo ->
+                photoRepository.deletePhoto(photo)
+            }
+            runRepository.deleteRun(runId)
+        }.mapActionErrors("delete this activity")
     }
 
     /**
@@ -113,5 +158,26 @@ class RouteDetailViewModel @Inject constructor(
                 )
             }
         }.getOrElse { emptyList() }
+    }
+
+    private fun isOwnedByCurrentUser(run: Run): Boolean = auth.currentUser?.uid == run.userId
+
+    private fun Result<Unit>.mapActionErrors(action: String): Result<Unit> {
+        return fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { error ->
+                val friendlyError = if (
+                    error is FirebaseFirestoreException &&
+                    error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                ) {
+                    IllegalStateException(
+                        "Firebase blocked this request. Make sure your Firestore rules allow the signed-in owner to $action."
+                    )
+                } else {
+                    error
+                }
+                Result.failure(friendlyError)
+            }
+        )
     }
 }

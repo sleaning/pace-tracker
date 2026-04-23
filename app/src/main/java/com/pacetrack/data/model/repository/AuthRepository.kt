@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.pacetrack.data.model.User
+import com.pacetrack.data.model.withNormalizedSearchName
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,7 +60,7 @@ class AuthRepository @Inject constructor(
             username = email.substringBefore("@"), // simple default; editable later
             profilePhotoUrl = "",
             following = emptyList()
-        )
+        ).withNormalizedSearchName()
 
         try {
             firestore.collection("users")

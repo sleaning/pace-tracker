@@ -73,4 +73,26 @@ class PhotoRepository @Inject constructor(
 
         return photoId
     }
+
+    /**
+     * Deletes photo metadata and attempts to remove the underlying storage
+     * object first. Storage cleanup is best-effort so the visible app data can
+     * still be removed even if the blob is already missing.
+     */
+    suspend fun deletePhoto(photo: Photo) {
+        val storageRef = when {
+            photo.imageUrl.isNotBlank() -> runCatching {
+                storage.getReferenceFromUrl(photo.imageUrl)
+            }.getOrNull()
+            photo.userId.isNotBlank() && photo.id.isNotBlank() ->
+                storage.reference.child("photos/${photo.userId}/${photo.id}")
+            else -> null
+        }
+
+        storageRef?.let { ref ->
+            runCatching { ref.delete().await() }
+        }
+
+        firestore.collection("photos").document(photo.id).delete().await()
+    }
 }

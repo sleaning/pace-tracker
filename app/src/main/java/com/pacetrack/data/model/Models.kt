@@ -2,6 +2,7 @@ package com.pacetrack.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.PropertyName
+import java.util.Locale
 
 /*
  * Core data models shared by the whole PaceTrack app.
@@ -14,6 +15,7 @@ import com.google.firebase.firestore.PropertyName
 data class Run(
     val id: String = "",
     val userId: String = "",
+    val title: String = "",
     val type: ActivityType = ActivityType.RUN,
     val startTime: Timestamp = Timestamp.now(),
     val endTime: Timestamp = Timestamp.now(),
@@ -67,3 +69,12 @@ enum class ActivityType {
     /** Returns "Walk" or "Run" for display in the UI. */
     val label: String get() = name.lowercase().replaceFirstChar { it.uppercase() }
 }
+
+/** Returns the saved custom title, or the default activity label when blank. */
+fun Run.displayTitle(): String = title.ifBlank { type.label }
+
+/** Lowercases names consistently so Firestore user search can ignore case. */
+fun String.normalizedForSearch(): String = trim().lowercase(Locale.ROOT)
+
+/** Keeps the denormalized user-search field aligned with the visible name. */
+fun User.withNormalizedSearchName(): User = copy(searchName = displayName.normalizedForSearch())

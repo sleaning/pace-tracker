@@ -1,8 +1,8 @@
 package com.pacetrack.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -19,7 +19,8 @@ import com.pacetrack.ui.profile.ProfileScreen
 import com.pacetrack.ui.tracking.ActiveTrackingScreen
 import com.pacetrack.ui.tracking.PostRunSummaryScreen
 import com.pacetrack.ui.tracking.PreRunScreen
-import com.pacetrack.ui.tracking.TrackingViewModel
+
+private const val RUN_REFRESH_SIGNAL = "run_refresh_signal"
 
 /**
  * Central navigation map for every top-level PaceTrack screen.
@@ -69,18 +70,36 @@ fun AppNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Home.route) {
+        composable(Screen.Home.route) { backStackEntry ->
+            val refreshSignal by backStackEntry.savedStateHandle
+                .getStateFlow<Long?>(RUN_REFRESH_SIGNAL, null)
+                .collectAsState()
+
             // Route detail is opened from both the social feed and the user's
             // own history, so the navigation target is centralized here.
-            HomeScreen(onRunClick = { runId ->
-                navController.navigate(Screen.RouteDetail.buildRoute(runId))
-            })
+            HomeScreen(
+                onRunClick = { runId ->
+                    navController.navigate(Screen.RouteDetail.buildRoute(runId))
+                },
+                refreshSignal = refreshSignal,
+                onRefreshConsumed = {
+                    backStackEntry.savedStateHandle[RUN_REFRESH_SIGNAL] = null
+                }
+            )
         }
 
-        composable(Screen.History.route) {
+        composable(Screen.History.route) { backStackEntry ->
+            val refreshSignal by backStackEntry.savedStateHandle
+                .getStateFlow<Long?>(RUN_REFRESH_SIGNAL, null)
+                .collectAsState()
+
             HistoryScreen(
                 onNavigateToRouteDetail = { runId ->
                     navController.navigate(Screen.RouteDetail.buildRoute(runId))
+                },
+                refreshSignal = refreshSignal,
+                onRefreshConsumed = {
+                    backStackEntry.savedStateHandle[RUN_REFRESH_SIGNAL] = null
                 }
             )
         }
@@ -150,7 +169,12 @@ fun AppNavGraph(navController: NavHostController) {
             val runId = backStackEntry.arguments?.getString(Screen.RouteDetail.ARG) ?: return@composable
             RouteDetailScreen(
                 runId = runId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onRunUpdated = {
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(RUN_REFRESH_SIGNAL, System.currentTimeMillis())
+                }
             )
         }
     }

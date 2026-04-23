@@ -8,6 +8,9 @@ import com.pacetrack.data.model.Photo
 import com.pacetrack.data.model.RoutePoint
 import com.pacetrack.data.model.Run
 import com.pacetrack.data.model.User
+import com.pacetrack.data.model.normalizedForSearch
+import com.pacetrack.data.model.withNormalizedSearchName
+import java.util.Locale
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,10 +47,24 @@ class FirestoreService @Inject constructor(
         return docId
     }
 
+    suspend fun updateRunTitle(runId: String, title: String) {
+        firestore.collection("runs")
+            .document(runId)
+            .update("title", title)
+            .await()
+    }
+
+    suspend fun deleteRun(runId: String) {
+        firestore.collection("runs")
+            .document(runId)
+            .delete()
+            .await()
+    }
+
     suspend fun saveUser(user: User) {
         firestore.collection("users")
             .document(user.id)
-            .set(user)
+            .set(user.withNormalizedSearchName())
             .await()
     }
 
@@ -75,6 +92,16 @@ class FirestoreService @Inject constructor(
 
     suspend fun getRecentPublicRuns(limit: Long): List<Run> {
         return firestore.collection("runs")
+            .whereEqualTo("public", true)
+            .orderBy("startTime", Query.Direction.DESCENDING)
+            .limit(limit)
+            .get().await()
+            .toObjects(Run::class.java)
+    }
+
+    suspend fun getRecentPublicRunsForUser(userId: String, limit: Long): List<Run> {
+        return firestore.collection("runs")
+            .whereEqualTo("userId", userId)
             .whereEqualTo("public", true)
             .orderBy("startTime", Query.Direction.DESCENDING)
             .limit(limit)
@@ -127,17 +154,32 @@ class FirestoreService @Inject constructor(
             .get().await().toObject(User::class.java)
 
     /**
-     * Searches users by display name prefix.
-     * The upper-bound sentinel creates a starts-with query pattern within the
-     * limits of Firestore range querying.
+     * Searches users by a normalized name prefix.
+     * Newer documents query against the lowercase `searchName` field, while a
+     * display-name fallback keeps older mixed-case documents searchable until
+     * they are rewritten with the normalized value.
      */
-    suspend fun searchUsers(query: String): List<User> =
-        firestore.collection("users")
-            .whereGreaterThanOrEqualTo("displayName", query)
-            .whereLessThanOrEqualTo("displayName", query + "\uF7FF")
-            .limit(20)
-            .get().await()
-            .toObjects(User::class.java)
+    suspend fun searchUsers(query: String): List<User> {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) return emptyList()
+
+        val normalizedQuery = trimmedQuery.normalizedForSearch()
+        val normalizedMatches = queryUsersByPrefix(
+            field = "searchName",
+            prefix = normalizedQuery
+        )
+        val legacyMatches = linkedSetOf(
+            trimmedQuery,
+            trimmedQuery.toDisplayNameSearchPrefix()
+        ).flatMap { prefix ->
+            queryUsersByPrefix(field = "displayName", prefix = prefix)
+        }
+
+        return (normalizedMatches + legacyMatches)
+            .filter { user -> user.displayName.startsWith(trimmedQuery, ignoreCase = true) }
+            .distinctBy { it.id }
+            .take(20)
+    }
 
     suspend fun followUser(currentUserId: String, targetUserId: String) {
         firestore.collection("users").document(currentUserId)
@@ -148,6 +190,24 @@ class FirestoreService @Inject constructor(
         firestore.collection("users").document(currentUserId)
             .update("following", FieldValue.arrayRemove(targetUserId)).await()
     }
+
+    private suspend fun queryUsersByPrefix(field: String, prefix: String): List<User> =
+        firestore.collection("users")
+            .whereGreaterThanOrEqualTo(field, prefix)
+            .whereLessThanOrEqualTo(field, prefix + "\uF7FF")
+            .limit(20)
+            .get().await()
+            .toObjects(User::class.java)
+
+    private fun String.toDisplayNameSearchPrefix(): String =
+        trim()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.normalizedForSearch().replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase(Locale.ROOT) else char.toString()
+                }
+            }
 
     /**
      * Loads public runs for the ids the current user follows.
@@ -172,7 +232,7 @@ class FirestoreService @Inject constructor(
             }
         }.getOrElse {
             distinctIds.flatMap { userId ->
-                getRecentRuns(userId, FEED_FALLBACK_PER_USER_LIMIT)
+                getRecentPublicRunsForUser(userId, FEED_FALLBACK_PER_USER_LIMIT)
             }
         }
 

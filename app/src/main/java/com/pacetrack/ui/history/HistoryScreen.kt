@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.pacetrack.data.model.ActivityType
 import com.pacetrack.data.model.Run
+import com.pacetrack.data.model.displayTitle
 import com.pacetrack.util.DistanceFormatter
 import com.pacetrack.util.PaceFormatter
 import java.text.SimpleDateFormat
@@ -35,9 +36,18 @@ import java.util.*
 @Composable
 fun HistoryScreen(
     onNavigateToRouteDetail: (String) -> Unit,
+    refreshSignal: Long? = null,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal != null) {
+            viewModel.loadRuns()
+            onRefreshConsumed()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -108,16 +118,18 @@ private fun RunHistoryCard(run: Run, onClick: () -> Unit) {
     val dateFormat = SimpleDateFormat("EEE, MMM d • h:mm a", Locale.getDefault())
     val dateStr = dateFormat.format(run.startTime.toDate())
     val isWalk = run.type == ActivityType.WALK
+    val title = run.displayTitle()
+    val subtitle = if (run.title.isBlank()) dateStr else "${run.type.label} • $dateStr"
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(
-                onClickLabel = "View route detail for ${run.type} on $dateStr"
+                onClickLabel = "View route detail for $title"
             ) { onClick() }
             .semantics {
-                contentDescription = "Run card: ${run.type}, ${DistanceFormatter.format(run.distance)}, $dateStr"
+                contentDescription = "Activity card: $title, ${DistanceFormatter.format(run.distance)}, $dateStr"
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -149,12 +161,12 @@ private fun RunHistoryCard(run: Run, onClick: () -> Unit) {
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isWalk) "Walk" else "Run",
+                    text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = dateStr,
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

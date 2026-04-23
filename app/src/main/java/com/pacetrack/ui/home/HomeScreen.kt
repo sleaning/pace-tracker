@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,12 +35,21 @@ private val OffWhite = Color(0xFFF5F7F2)    // App background
 @Composable
 fun HomeScreen(
     onRunClick: (String) -> Unit,
+    refreshSignal: Long? = null,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val feedItems by viewModel.feedItems.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal != null) {
+            viewModel.loadFeed(force = true)
+            onRefreshConsumed()
+        }
+    }
 
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->

@@ -65,6 +65,7 @@ fun PostRunSummaryScreen(
     val saveState by viewModel.saveState.collectAsState()
     val pendingPhotos by viewModel.pendingPhotos.collectAsState()
     val snapshot = remember { trackingViewModel.sessionSnapshot() }
+    var titleDraft by remember { mutableStateOf("") }
 
     // The snapshot is captured once when this screen opens so distance, pace,
     // and route data stay stable even if other state changes during saving.
@@ -128,6 +129,16 @@ fun PostRunSummaryScreen(
                 text = if (activityType == ActivityType.RUN) "Great run! 🏃" else "Great walk! 🚶",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.primary
+            )
+
+            OutlinedTextField(
+                value = titleDraft,
+                onValueChange = { titleDraft = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Activity title (optional)") },
+                placeholder = { Text(activityType.label) },
+                singleLine = true,
+                enabled = saveState !is SaveState.Saving
             )
 
             // ── Map ───────────────────────────────────────────────────────────
@@ -208,7 +219,7 @@ fun PostRunSummaryScreen(
             val isSaving = saveState is SaveState.Saving
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { viewModel.saveRun(context, activityType, snapshot) },
+                    onClick = { viewModel.saveRun(context, activityType, snapshot, titleDraft) },
                     enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(12.dp)

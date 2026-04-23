@@ -73,7 +73,8 @@ class PostRunSummaryViewModel @Inject constructor(
     fun saveRun(
         context: Context,
         activityType: ActivityType,
-        snapshot: SessionSnapshot
+        snapshot: SessionSnapshot,
+        title: String
     ) {
         val userId = auth.currentUser?.uid
         if (userId == null) {
@@ -111,6 +112,7 @@ class PostRunSummaryViewModel @Inject constructor(
                 val run = Run(
                     id = runId,
                     userId = userId,
+                    title = title.trim(),
                     type = activityType,
                     startTime = snapshot.startTime,
                     endTime = snapshot.endTime,

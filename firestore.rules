@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function runDoc(runId) {
+      return get(/databases/$(database)/documents/runs/$(runId));
+    }
+
+    function runExists(runId) {
+      return exists(/databases/$(database)/documents/runs/$(runId));
+    }
+
+    function canReadRunData(data) {
+      return signedIn() && (data.public == true || data.userId == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update, delete: if isOwner(userId);
+    }
+
+    match /runs/{runId} {
+      allow read: if canReadRunData(resource.data);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.id == runId;
+      allow update, delete: if isOwner(resource.data.userId);
+
+      match /points/{pointId} {
+        allow read: if canReadRunData(runDoc(runId).data);
+        allow write: if isOwner(runDoc(runId).data.userId);
+      }
+    }
+
+    match /photos/{photoId} {
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (runExists(resource.data.runId) && canReadRunData(runDoc(resource.data.runId).data))
+      );
+      allow create: if signedIn()
+        && request.resource.data.id == photoId
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+  }
+}

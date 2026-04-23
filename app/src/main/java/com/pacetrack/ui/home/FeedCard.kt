@@ -47,6 +47,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.pacetrack.data.model.ActivityType
 import com.pacetrack.data.model.Run
 import com.pacetrack.data.model.User
+import com.pacetrack.data.model.displayTitle
 import com.pacetrack.util.DistanceFormatter
 import com.pacetrack.util.PaceFormatter
 import com.pacetrack.util.PolylineEncoder
@@ -68,7 +69,7 @@ fun FeedCard(item: HomeFeedItem, onClick: () -> Unit) {
     val athlete = item.athlete
     val startDate = remember(run.startTime) { run.startTime.toDate() }
     val timestampLabel = remember(startDate) { formatFeedTimestamp(startDate) }
-    val headline = remember(startDate, run.type) { buildActivityHeadline(run.type, startDate) }
+    val headline = remember(run.title, startDate, run.type) { buildActivityHeadline(run, startDate) }
     val routePoints = remember(run.encodedPolyline) {
         runCatching {
             if (run.encodedPolyline.isBlank()) emptyList() else PolylineEncoder.decode(run.encodedPolyline)
@@ -514,7 +515,9 @@ private fun buildHeaderMetaLine(athlete: User?, timestampLabel: String): String 
     return listOfNotNull(username, timestampLabel).joinToString(" • ")
 }
 
-private fun buildActivityHeadline(type: ActivityType, startDate: Date): String {
+private fun buildActivityHeadline(run: Run, startDate: Date): String {
+    if (run.title.isNotBlank()) return run.displayTitle()
+
     val hour = Calendar.getInstance().apply { time = startDate }.get(Calendar.HOUR_OF_DAY)
     val timeOfDay = when (hour) {
         in 4..11 -> "Morning"
@@ -522,7 +525,7 @@ private fun buildActivityHeadline(type: ActivityType, startDate: Date): String {
         in 17..21 -> "Evening"
         else -> "Late Night"
     }
-    return "$timeOfDay ${type.displayName()}"
+    return "$timeOfDay ${run.type.displayName()}"
 }
 
 private fun formatFeedTimestamp(date: Date): String {

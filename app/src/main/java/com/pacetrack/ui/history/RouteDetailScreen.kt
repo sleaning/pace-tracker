@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,10 +25,12 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.pacetrack.data.model.ActivityType
 import com.pacetrack.data.model.Photo
+import com.pacetrack.data.model.displayTitle
 import com.pacetrack.ui.map.MapFallback
 import com.pacetrack.ui.map.isMapsConfigured
 import com.pacetrack.util.DistanceFormatter
 import com.pacetrack.util.PaceFormatter
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,6 +43,7 @@ import java.util.*
 fun RouteDetailScreen(
     runId: String,
     onNavigateBack: () -> Unit,
+    onRunUpdated: () -> Unit,
     viewModel: RouteDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -59,7 +64,9 @@ fun RouteDetailScreen(
         is RouteDetailUiState.Success -> {
             RouteDetailContent(
                 detail = state.detail,
-                onBack = onNavigateBack
+                onBack = onNavigateBack,
+                onRunUpdated = onRunUpdated,
+                viewModel = viewModel
             )
         }
     }
@@ -74,10 +81,13 @@ fun RouteDetailScreen(
 @Composable
 private fun RouteDetailContent(
     detail: RouteDetail,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRunUpdated: () -> Unit,
+    viewModel: RouteDetailViewModel
 ) {
     val run = detail.run
     val polylinePoints = detail.points.map { LatLng(it.latitude, it.longitude) }
+    val scope = rememberCoroutineScope()
 
     val cameraPositionState = rememberCameraPositionState {
         if (polylinePoints.isNotEmpty()) {
@@ -86,8 +96,17 @@ private fun RouteDetailContent(
     }
 
     var selectedPhoto by remember { mutableStateOf<Photo?>(null) }
+    var showTitleDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var titleDraft by remember(run.id) { mutableStateOf(run.title) }
+    var isSavingTitle by remember { mutableStateOf(false) }
+    var titleSaveError by remember { mutableStateOf<String?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     val dateFormat = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault())
     val dateStr = runCatching { dateFormat.format(run.startTime.toDate()) }.getOrDefault("")
+    val subtitle = if (run.title.isBlank()) dateStr else "${run.type.label} • $dateStr"
+    val canManage = detail.canManage
 
     Scaffold(
         topBar = {
@@ -166,13 +185,81 @@ private fun RouteDetailContent(
 
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = dateStr,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = run.displayTitle(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        if (canManage) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalIconButton(
+                                    enabled = !isDeleting,
+                                    onClick = {
+                                        titleDraft = run.title
+                                        titleSaveError = null
+                                        showTitleDialog = true
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit activity title"
+                                    )
+                                }
+                                FilledTonalIconButton(
+                                    enabled = !isSavingTitle && !isDeleting,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    ),
+                                    onClick = {
+                                        deleteError = null
+                                        showDeleteDialog = true
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete activity"
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(16.dp))
-
+                    Text(
+                        text = if (!canManage) {
+                            "You can view this shared activity, but only its owner can edit or delete it."
+                        } else if (run.title.isBlank()) {
+                            "Add a custom title to make this ${run.type.label.lowercase(Locale.getDefault())} easier to spot later."
+                        } else {
+                            "Custom title saved for this ${run.type.label.lowercase(Locale.getDefault())}."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    deleteError?.let { message ->
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                     StatGrid(run = run)
                 }
             }
@@ -231,6 +318,154 @@ private fun RouteDetailContent(
                     .clickable { selectedPhoto = null }
             )
         }
+    }
+
+    if (showTitleDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingTitle && !isDeleting) {
+                    showTitleDialog = false
+                    titleSaveError = null
+                }
+            },
+            title = { Text("Edit activity title") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = titleDraft,
+                        onValueChange = {
+                            titleDraft = it
+                            titleSaveError = null
+                        },
+                        label = { Text("Activity title") },
+                        placeholder = { Text(run.type.label) },
+                        singleLine = true,
+                        enabled = !isSavingTitle && !isDeleting
+                    )
+                    Text(
+                        text = "Leave it blank to fall back to the default ${run.type.label.lowercase(Locale.getDefault())} label.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    titleSaveError?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isSavingTitle && !isDeleting,
+                    onClick = {
+                        scope.launch {
+                            isSavingTitle = true
+                            titleSaveError = null
+                            val result = viewModel.updateRunTitle(titleDraft)
+                            isSavingTitle = false
+                            result.onSuccess {
+                                showTitleDialog = false
+                                onRunUpdated()
+                            }.onFailure { error ->
+                                titleSaveError = error.message ?: "Failed to save title"
+                            }
+                        }
+                    }
+                ) {
+                    if (isSavingTitle) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showTitleDialog = false
+                        titleSaveError = null
+                    },
+                    enabled = !isSavingTitle && !isDeleting
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeleting) {
+                    showDeleteDialog = false
+                    deleteError = null
+                }
+            },
+            title = { Text("Delete activity?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (detail.photos.isNotEmpty()) {
+                            "This will permanently delete this ${run.type.label.lowercase(Locale.getDefault())} and its ${detail.photos.size} attached photo${if (detail.photos.size == 1) "" else "s"}."
+                        } else {
+                            "This will permanently delete this ${run.type.label.lowercase(Locale.getDefault())}."
+                        }
+                    )
+                    deleteError?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        scope.launch {
+                            isDeleting = true
+                            deleteError = null
+                            val result = viewModel.deleteRun()
+                            isDeleting = false
+                            result.onSuccess {
+                                showDeleteDialog = false
+                                onRunUpdated()
+                                onBack()
+                            }.onFailure { error ->
+                                deleteError = error.message ?: "Failed to delete activity"
+                            }
+                        }
+                    }
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Delete")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeleting,
+                    onClick = {
+                        showDeleteDialog = false
+                        deleteError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

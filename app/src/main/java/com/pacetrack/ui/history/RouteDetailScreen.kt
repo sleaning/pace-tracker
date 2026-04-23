@@ -3,9 +3,6 @@ package com.pacetrack.ui.history
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -78,7 +75,7 @@ private fun RouteDetailContent(
 
     var selectedPhoto by remember { mutableStateOf<Photo?>(null) }
     val dateFormat = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault())
-    val dateStr = dateFormat.format(run.startTime.toDate())
+    val dateStr = runCatching { dateFormat.format(run.startTime.toDate()) }.getOrDefault("")
 
     Scaffold(
         topBar = {
@@ -165,25 +162,31 @@ private fun RouteDetailContent(
                     )
                 }
                 item {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .heightIn(max = 500.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        userScrollEnabled = false
+                    // Replaced LazyVerticalGrid with a simple Column/Row to avoid nested scroll issues
+                    // and potential crashes if the grid height calculation fails in some contexts
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(detail.photos) { photo ->
-                            AsyncImage(
-                                model = photo.imageUrl,
-                                contentDescription = "Route photo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { selectedPhoto = photo }
-                            )
+                        detail.photos.chunked(3).forEach { chunk ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                chunk.forEach { photo ->
+                                    AsyncImage(
+                                        model = photo.imageUrl,
+                                        contentDescription = "Route photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { selectedPhoto = photo }
+                                    )
+                                }
+                                // Fill empty space if row is not full
+                                repeat(3 - chunk.size) {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }
